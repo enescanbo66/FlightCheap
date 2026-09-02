@@ -16,7 +16,7 @@ const PICK_TRADE_VALUES = {
   16: 5,
 };
 
-const ROUND_RE = /^Round\s+(\d{1,2})\s*$/i;
+const ROUND_RE = /^Round\s+(\d{1,2})(?:\s*\([^)]*\))?\s*$/i;
 const TRADED_TO_ONLY_RE = /^(?:Vetoed Trade to|Traded to)\s*$/i;
 const TRADED_TO_INLINE_RE =
   /^(?:Vetoed Trade to|Traded to)\s+(.+?)(?:\s*\(\s*\))?\s*$/i;
@@ -25,7 +25,10 @@ const DATE_RE =
 const SKIP_RE = /^(logo||)$/i;
 
 function cleanTeamName(name) {
-  return name.replace(/\s*\(\s*\)\s*$/, "").replace(/\s+/g, " ").trim();
+  return name
+    .replace(/\s*\([^)]*\)\s*$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function isPlayerLine(line) {
@@ -206,4 +209,6 @@ function main() {
     });
 }
 
-main();
+if (process.argv[1] && process.argv[1].endsWith('parse-yahoo-trades.mjs')) {
+  main();
+}
