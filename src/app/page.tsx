@@ -2,13 +2,29 @@
 
 import { useMemo, useState } from "react";
 import { LeaguePanel } from "@/components/league-panel";
+import { PickTradeAnalysis } from "@/components/pick-trade-analysis";
 import { PromotionResult } from "@/components/promotion-result";
-import { evaluatePromotion, type LeagueData } from "@/lib/promotion";
+import { evaluatePromotion, type LeagueData, type TeamStanding } from "@/lib/promotion";
 
 const emptyLeague = (key: string): LeagueData => ({
   leagueKey: key,
   teams: [],
 });
+
+function mergeTeams(
+  existing: TeamStanding[],
+  incoming: TeamStanding[],
+): TeamStanding[] {
+  if (existing.length === 0) return incoming;
+  return existing.map((team) => {
+    const match =
+      incoming.find((row) => row.teamKey && row.teamKey === team.teamKey) ??
+      incoming.find(
+        (row) => row.name.toLowerCase() === team.name.toLowerCase(),
+      );
+    return match ? { ...team, pickTradeNet: match.pickTradeNet } : team;
+  });
+}
 
 export default function HomePage() {
   const [aLeague, setALeague] = useState<LeagueData>(() => emptyLeague("a-lig"));
@@ -36,6 +52,15 @@ export default function HomePage() {
       </header>
 
       <PromotionResult verdict={verdict} />
+
+      <PickTradeAnalysis
+        onApplyToTeams={(teams) => {
+          setALeague((current) => ({
+            ...current,
+            teams: mergeTeams(current.teams, teams),
+          }));
+        }}
+      />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <LeaguePanel

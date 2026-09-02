@@ -2,6 +2,7 @@ export type ParsedYahooLeague = {
   leagueId: string;
   gameKey?: string;
   leagueKey?: string;
+  seasonYear?: number;
   rawUrl: string;
 };
 
@@ -21,6 +22,7 @@ export type YahooLeagueResponse = {
 };
 
 const LEAGUE_ID_PATTERNS = [
+  /basketball\.fantasysports\.yahoo\.com\/(\d{4})\/nba\/(\d+)/i,
   /basketball\.fantasysports\.yahoo\.com\/nba\/(\d+)/i,
   /basketball\.fantasysports\.yahoo\.com\/f\d+\/(\d+)/i,
   /fantasysports\.yahoo\.com\/[^/]+\/(\d+)/i,
@@ -38,6 +40,17 @@ export function parseYahooLeagueUrl(input: string): ParsedYahooLeague | null {
       gameKey: leagueKeyMatch[1],
       leagueId: leagueKeyMatch[2],
       leagueKey: `${leagueKeyMatch[1]}.l.${leagueKeyMatch[2]}`,
+      rawUrl: trimmed,
+    };
+  }
+
+  const seasonLeagueMatch = trimmed.match(
+    /basketball\.fantasysports\.yahoo\.com\/(\d{4})\/nba\/(\d+)/i,
+  );
+  if (seasonLeagueMatch) {
+    return {
+      seasonYear: Number(seasonLeagueMatch[1]),
+      leagueId: seasonLeagueMatch[2],
       rawUrl: trimmed,
     };
   }
