@@ -449,7 +449,7 @@ async function fetchKiwiSearch(
       const fl = await fetchKiwiJson(`${FLIGHTLIST_URL}?${query}`, {
         Accept: "application/json",
         "User-Agent":
-          "Mozilla/5.0 (compatible; FlyList/1.0; +https://localhost)",
+          "Mozilla/5.0 (compatible; FlightCheap/1.0; +https://localhost)",
         Referer: "https://www.flightlist.io/",
       });
       if (fl?.data?.length) raw = fl;

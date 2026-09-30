@@ -187,7 +187,7 @@ export function FlightSearchApp() {
             </svg>
           </span>
           <span className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight text-sky-950">
-            FlyList
+            FlightCheap
           </span>
         </a>
         <div className="flex items-center gap-1.5 rounded-full border border-sky-900/10 bg-white/90 p-1 shadow-sm">
@@ -224,7 +224,7 @@ export function FlightSearchApp() {
 
         <div className="relative">
           <p className="font-[family-name:var(--font-display)] text-4xl font-bold tracking-tight text-sky-950 sm:text-5xl">
-            FlyList
+            FlightCheap
           </p>
           <h1 className="mt-2 max-w-2xl text-xl font-medium text-slate-700 sm:text-2xl">
             Cheap Flights. Simplified.

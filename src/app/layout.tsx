@@ -13,7 +13,7 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "FlyList — Cheap Flights Across Any Date Range",
+  title: "FlightCheap — Cheap Flights Across Any Date Range",
   description:
     "Find the cheapest flights to any destination. Search by airport, city, country or region across a flexible date range.",
 };

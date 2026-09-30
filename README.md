@@ -1,51 +1,106 @@
-# FlyList
+# FlightCheap
 
-Cheap flights across any date range — a FlightList-style search app.
+Esnek tarih aralığında ucuz uçuş ara — şehir, ülke, bölge veya **Anywhere** destinasyonlarıyla.
 
-Search from any airport/city to another airport, city, country, region, or **Anywhere**. Results span a flexible departure window, sorted by lowest price, with filters for direct flights, budget, cabin class, and airline.
+FlightCheap; Kiwi/FlightList tarzı fiyat taraması, yakın havalimanı araması, gidiş/dönüş fiyat kırılımı ve rezervasyon deep link’leri sunar.
 
-## Stack
+## Gereksinimler
 
-- Next.js + TypeScript + Tailwind + shadcn/ui
-- Place autocomplete via Travelpayouts Places API
-- Primary fares via **Kiwi Tequila** (or FlightList proxy) with booking `deep_link`
-- Fallback fares via Google Flights (`fast-flights` Python helper)
+- **Node.js** 20+ (npm ile)
+- **Python** 3.10+ (`fast-flights` Google Flights yedek yolu için)
 
-## Run locally
+## Kurulum
 
 ```bash
-# Node deps
+git clone https://github.com/enescanbo66/FlightCheap.git
+cd FlightCheap
+
+# Node bağımlılıkları
 npm install
 
-# Python helper used by /api/flights (Google fallback)
-pip install fast-flights httpx
+# Python yardımcısı (Google Flights fallback)
+pip install -r requirements.txt
+# veya: pip install fast-flights httpx
+```
 
-# Optional — preferred for EU ULCC + deep links
+### Opsiyonel API anahtarı
+
+Daha stabil Kiwi/Tequila sonuçları ve deep link için:
+
+```bash
 export TEQUILA_API_KEY=your_tequila_key
-# (or KIWI_API_KEY)
+# veya
+export KIWI_API_KEY=your_kiwi_key
+```
 
+Anahtar yoksa uygulama önce genel FlightList proxy’sini dener, olmazsa Google Flights’a düşer.
+
+## Çalıştırma
+
+```bash
 npm run dev
 ```
 
-App runs at [http://localhost:4321](http://localhost:4321).
+Tarayıcıda aç: [http://localhost:4321](http://localhost:4321)
 
-## How search works
+Üretim derlemesi:
 
-1. Pick **From** / **To** (airport, city, country, region, or Anywhere)
-2. Choose a **date range** (and return range for round-trip)
-3. Optionally filter: direct only, max budget, airline, cabin
-4. Hit **Search** — `/api/flights` tries **Kiwi first** (native country codes like `PL`, airport prefixes like `airport:MAD`), then falls back to Google Flights when Kiwi cannot cover the query (region / Anywhere) or is unavailable
+```bash
+npm run build
+npm start
+```
 
-**View deal** uses the Kiwi `deep_link` when present; otherwise opens Google Flights for that itinerary.
+## Nasıl kullanılır?
 
-### Nearby airports
+1. **From / To** seç — havalimanı, şehir, ülke, bölge veya Anywhere
+2. **One-way** veya **Round-trip** seç; gidiş (ve dönüş) tarih aralığını ayarla
+3. İstersen filtreleri aç: aktarma, max budget, kabin, airline
+4. **Nearby airports** (kalkış ve varış için ayrı):
+   - Açınca ~250 km yarıçapındaki havalimanları listelenir
+   - Yarıçapı 50–500 km arasıleyebilirsin
+   - İstemediğin havalimanlarını listeden çıkar (ör. sadece SAW, OGU kapalı)
+5. **Search**’e bas — sonuçlar fiyata göre sıralanır
+6. Bir satırı aç:
+   - Round-trip’te **Outbound / Return** fiyatları ayrı görünür
+   - Yakın havalimanı veya open-jaw (ör. BRU→MAD→AMS) satırlarında uyarı ikonu çıkar
+   - **View deal** Kiwi deep link’i (veya Google Flights) açar
 
-Optionally expand origin and/or destination to other flightable airports within a radius (default **250 km**, adjustable 50–500 km). Each side has its own toggle and checklist so you can drop airports you do not want (e.g. keep SAW only, exclude OGU near Rize). Results that use an airport outside your original place are marked with an alert icon.
+## Öne çıkan özellikler
 
-## Notes
+| Özellik | Açıklama |
+|--------|----------|
+| Esnek tarih | Tarih aralığında en ucuz uçuşları tara |
+| Ülke / bölge | Örn. MAD → Polonya (PL) |
+| Yakın havalimanı | Kalkış/varış için ayrı toggle + checklist |
+| Open-jaw | Gidiş BRU, dönüş AMS gibi karışık dönüşler |
+| Fiyat kırılımı | Round-trip’te gidiş ve dönüş fiyatı ayrı |
+| Deep link | View deal ile rezervasyona git |
 
-- Set `TEQUILA_API_KEY` (or `KIWI_API_KEY`) for reliable Kiwi/Tequila results. Without a key, the app may try the public FlightList proxy, then fall back to Google.
-- Wide date ranges on the Google path are sampled (not every single day) to keep searches responsive
-- Country / region / Anywhere destinations expand to hub airports on the Google path; Kiwi accepts ISO country codes natively
-- Nearby-airport mode is available for city and airport selections (not country/region/Anywhere)
-- No API keys required for the Google Flights + Places fallback
+## Teknik yığın
+
+- Next.js + TypeScript + Tailwind + shadcn/ui
+- Yer autocomplete: Travelpayouts Places
+- Birincil fiyat: Kiwi Tequila / FlightList proxy (`deep_link`)
+- Yedek: Google Flights (`scripts/search_flights.py` + `fast-flights`)
+
+## Proje yapısı (özet)
+
+```
+src/
+  app/                 # Next.js App Router (sayfa + API)
+  components/          # Arama UI, sonuçlar, nearby kontrolü
+  lib/                 # Kiwi, bölgeler, havalimanı mesafeleri
+scripts/
+  search_flights.py    # Google Flights fallback
+```
+
+## Notlar
+
+- Geniş tarih aralıklarında Google yolu her günü değil, örnek günleri tarar
+- Nearby airports yalnızca **şehir / havalimanı** seçiminde görünür (ülke/bölge/Anywhere’de yok)
+- FlightList proxy bazı sunuculardan Cloudflare ile engellenebilir; üretim için `TEQUILA_API_KEY` önerilir
+- Bu proje eğitim / kişisel kullanım amaçlı bir uçuş arama arayüzüdür; ticari affiliate kullanımı için Kiwi/Tequila koşullarına uyun
+
+## Lisans
+
+Özel kullanım — repo sahibi belirler.
