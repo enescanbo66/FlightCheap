@@ -1,46 +1,40 @@
-# FantastiLig — A/B Lig Yükselme Hesaplayıcı
+# FlyList
 
-FantastiLig için A ve B ligleri arası yükselme-düşme kararını hesaplayan web arayüzü.
+Cheap flights across any date range — a FlightList-style search app.
 
-## Ne yapar?
+Search from any airport/city to another airport, city, country, region, or **Anywhere**. Results span a flexible departure window, sorted by lowest price, with filters for direct flights, budget, cabin class, and airline.
 
-- Yahoo Fantasy lig linkinden takım sıralaması ve kategori galibiyet/mağlubiyet/beraberlik verilerini çeker (OAuth token ile)
-- Manuel veri girişi desteği (token olmadan da kullanılabilir)
-- Pick-trade puanlarını (Kural Kitabı Tablo 4) hesaplar
-- B lig 1. ile A lig sonuncusunun toplam puanını karşılaştırır
+## Stack
 
-### Puan formülü
+- Next.js + TypeScript + Tailwind + shadcn/ui
+- Place autocomplete via Travelpayouts Places API
+- Live fares via Google Flights (`fast-flights` Python helper)
 
-```
-Toplam = Kategori Galibiyetleri + (Beraberlik × 0.5) + Net Pick-Trade Puanı
-```
-
-- **B lig 1.:** Verilen pick hakları eksi değerdedir
-- **A lig sonuncusu:** Alınan pick hakları artı değerdedir
-
-B lig şampiyonunun toplamı > A lig sonuncusunun toplamı ise yükselme gerçekleşir.
-
-## Kurulum
+## Run locally
 
 ```bash
+# Node deps
 npm install
+
+# Python helper used by /api/flights
+pip install fast-flights httpx
+
 npm run dev
 ```
 
-Uygulama varsayılan olarak `http://localhost:4317` adresinde çalışır.
+App runs at [http://localhost:4321](http://localhost:4321).
 
-## Yahoo API (isteğe bağlı)
+## How search works
 
-Özel ligler için Yahoo Fantasy OAuth access token gerekir. Token'ı:
+1. Pick **From** / **To** (airport, city, country, region, or Anywhere)
+2. Choose a **date range** (and return range for round-trip)
+3. Optionally filter: direct only, max budget, airline, cabin
+4. Hit **Search** — the API fans out Google Flights queries across the range (and across destination airports for countries/regions), then merges & sorts by price
 
-1. Arayüzdeki "Yahoo API token" alanına yapıştırabilirsiniz, veya
-2. Sunucu ortam değişkeni olarak `YAHOO_ACCESS_TOKEN` tanımlayabilirsiniz
+Booking links open Google Flights for the selected itinerary.
 
-Token olmadan da tüm değerleri manuel girebilirsiniz.
+## Notes
 
-## Kullanım
-
-1. A Lig ve B Lig panellerine Yahoo lig linkini yapıştırın
-2. Verileri çekin veya manuel girin
-3. Pick-trade puanlarını ekleyin
-4. Üstteki kart yükselme kararını gösterir
+- Wide date ranges are sampled (not every single day) to keep searches responsive
+- Country / region / Anywhere destinations expand to a curated set of hub airports
+- No API keys required for the default Google Flights + Places setup

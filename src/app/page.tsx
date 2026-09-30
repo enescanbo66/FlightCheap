@@ -1,104 +1,17 @@
-"use client";
+import { FlightSearchApp } from "@/components/flight-search-app";
 
-import { useMemo, useState } from "react";
-import { LeaguePanel } from "@/components/league-panel";
-import { PickTradeAnalysis } from "@/components/pick-trade-analysis";
-import { PromotionResult } from "@/components/promotion-result";
-import { evaluatePromotion, type LeagueData, type TeamStanding } from "@/lib/promotion";
-
-const emptyLeague = (key: string): LeagueData => ({
-  leagueKey: key,
-  teams: [],
-});
-
-function mergeTeams(
-  existing: TeamStanding[],
-  incoming: TeamStanding[],
-): TeamStanding[] {
-  if (existing.length === 0) return incoming;
-  return existing.map((team) => {
-    const match =
-      incoming.find((row) => row.teamKey && row.teamKey === team.teamKey) ??
-      incoming.find(
-        (row) => row.name.toLowerCase() === team.name.toLowerCase(),
-      );
-    return match ? { ...team, pickTradeNet: match.pickTradeNet } : team;
-  });
-}
-
-export default function HomePage() {
-  const [aLeague, setALeague] = useState<LeagueData>(() => emptyLeague("a-lig"));
-  const [bLeague, setBLeague] = useState<LeagueData>(() => emptyLeague("b-lig"));
-
-  const verdict = useMemo(
-    () => evaluatePromotion(bLeague, aLeague),
-    [bLeague, aLeague],
-  );
-
+export default function Home() {
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 py-10 sm:px-6">
-      <header className="space-y-3">
-        <p className="text-sm font-medium uppercase tracking-widest text-orange-600">
-          FantastiLig
-        </p>
-        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-          A / B Lig Yükselme Hesaplayıcı
-        </h1>
-        <p className="max-w-3xl text-muted-foreground">
-          Yahoo Fantasy lig linkinizi girerek kategori galibiyetlerini çekin,
-          pick-trade puanlarını ekleyin ve B lig şampiyonunun A lige yükselip
-          yükselmeyeceğini anında görün.
-        </p>
-      </header>
-
-      <PromotionResult verdict={verdict} />
-
-      <PickTradeAnalysis
-        onApplyToTeams={(teams) => {
-          setALeague((current) => ({
-            ...current,
-            teams: mergeTeams(current.teams, teams),
-          }));
-        }}
+    <main className="relative min-h-full flex-1 overflow-x-hidden">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(1200px_600px_at_10%_-10%,rgba(56,189,248,0.28),transparent_55%),radial-gradient(900px_500px_at_90%_0%,rgba(14,165,233,0.18),transparent_50%),linear-gradient(180deg,#f0f9ff_0%,#f8fafc_42%,#eef6fb_100%)]"
       />
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <LeaguePanel
-          title="A Lig"
-          description="Mevcut ana lig — son sıradaki takım düşme adayıdır."
-          accent="a"
-          data={aLeague}
-          onChange={setALeague}
-        />
-        <LeaguePanel
-          title="B Lig"
-          description="Yeni kurulacak lig — 1. sıradaki takım yükselme adayıdır."
-          accent="b"
-          data={bLeague}
-          onChange={setBLeague}
-        />
-      </div>
-
-      <section className="rounded-xl border bg-muted/30 p-5 text-sm text-muted-foreground">
-        <h2 className="mb-2 font-semibold text-foreground">Nasıl çalışır?</h2>
-        <ol className="list-decimal space-y-1 pl-5">
-          <li>
-            Her lig için Yahoo linkini yapıştırıp &quot;Yahoo&apos;dan veri
-            çek&quot; deyin (özel liglerde OAuth token gerekir).
-          </li>
-          <li>
-            Kategori galibiyet / mağlubiyet / beraberlik değerlerini normal sezon
-            + play-off dahil olacak şekilde kontrol edin.
-          </li>
-          <li>
-            Pick-trade puanlarını girin: B lig 1.&apos;si için verilen pickler
-            eksi, A lig sonuncusu için alınan pickler artı değerdedir.
-          </li>
-          <li>
-            Üstteki kart otomatik olarak yükselme kararını hesaplar.
-          </li>
-        </ol>
-      </section>
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 -z-10 opacity-[0.35] [background-image:linear-gradient(rgba(14,116,144,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(14,116,144,0.05)_1px,transparent_1px)] [background-size:48px_48px] [mask-image:radial-gradient(ellipse_at_top,black_35%,transparent_75%)]"
+      />
+      <FlightSearchApp />
     </main>
   );
 }
