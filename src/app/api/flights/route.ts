@@ -1,8 +1,60 @@
 import { NextResponse } from "next/server";
 
 import { searchFlightsExpanded } from "@/lib/flights";
-import { expandPlaceToSearchCodes } from "@/lib/regions";
+import { countryHubs, expandPlaceToSearchCodes } from "@/lib/regions";
 import type { CabinClass, TripType } from "@/lib/types";
+
+type TpCity = {
+  code?: string;
+  name?: string;
+  country_code?: string;
+  has_flightable_airport?: boolean;
+};
+
+let citiesCache: TpCity[] | null = null;
+
+async function loadCities(): Promise<TpCity[]> {
+  if (citiesCache) return citiesCache;
+  try {
+    const res = await fetch("https://api.travelpayouts.com/data/en/cities.json", {
+      next: { revalidate: 86400 },
+    });
+    if (!res.ok) return [];
+    citiesCache = (await res.json()) as TpCity[];
+    return citiesCache;
+  } catch {
+    return [];
+  }
+}
+
+/** Resolve country → hub city codes, with Travelpayouts fallback for missing countries. */
+async function resolveSearchCodes(
+  code: string,
+  kind?: string
+): Promise<string[]> {
+  const expanded = expandPlaceToSearchCodes(code, kind);
+  if (expanded.length) return expanded;
+
+  const upper = code.toUpperCase();
+  const looksLikeCountry = kind === "country" || upper.length === 2;
+  if (!looksLikeCountry) return [upper];
+
+  const hubs = countryHubs(upper);
+  if (hubs?.length) return hubs;
+
+  const cities = await loadCities();
+  const codes = cities
+    .filter(
+      (c) =>
+        c.country_code === upper &&
+        c.code &&
+        (c.has_flightable_airport === undefined || c.has_flightable_airport)
+    )
+    .map((c) => c.code!.toUpperCase());
+
+  // Prefer well-known order: keep unique, cap hubs
+  return [...new Set(codes)].slice(0, 10);
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -31,8 +83,22 @@ export async function GET(request: Request) {
     );
   }
 
-  const origins = expandPlaceToSearchCodes(from, fromKind);
-  const destinations = expandPlaceToSearchCodes(to, toKind);
+  const [origins, destinations] = await Promise.all([
+    resolveSearchCodes(from, fromKind),
+    resolveSearchCodes(to, toKind),
+  ]);
+
+  if (!origins.length || !destinations.length) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: `Could not expand ${!origins.length ? "origin" : "destination"} "${!origins.length ? from : to}" into airports. Try a city or airport instead.`,
+        flights: [],
+        count: 0,
+      },
+      { status: 400 }
+    );
+  }
 
   const maxStops =
     maxStopsRaw === null || maxStopsRaw === "" || maxStopsRaw === "any"

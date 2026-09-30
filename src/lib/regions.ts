@@ -145,6 +145,24 @@ export const CITY_AIRPORTS: Record<
     countryName: "Spain",
     airports: ["BCN"],
   },
+  MAD: {
+    name: "Madrid",
+    countryCode: "ES",
+    countryName: "Spain",
+    airports: ["MAD"],
+  },
+  WAW: {
+    name: "Warsaw",
+    countryCode: "PL",
+    countryName: "Poland",
+    airports: ["WAW", "WMI"],
+  },
+  KRK: {
+    name: "Krakow",
+    countryCode: "PL",
+    countryName: "Poland",
+    airports: ["KRK"],
+  },
   DXB: {
     name: "Dubai",
     countryCode: "AE",
@@ -271,143 +289,100 @@ export const REGIONS: PlaceOption[] = [
   },
 ];
 
-export const COUNTRIES: PlaceOption[] = [
-  {
-    id: "country-TR",
-    code: "TR",
-    name: "Turkey",
-    kind: "country",
-    countryCode: "TR",
+/** Major city/airport hubs per ISO country — used to expand "All cities" searches. */
+export const COUNTRY_HUBS: Record<string, { name: string; airports: string[] }> = {
+  TR: { name: "Turkey", airports: ["IST", "SAW", "AYT", "ESB", "ADB", "BJV", "TZX", "GZT", "DLM", "ASR"] },
+  NL: { name: "Netherlands", airports: ["AMS", "EIN", "RTM", "GRQ"] },
+  US: { name: "United States", airports: ["NYC", "LAX", "CHI", "MIA", "SFO", "BOS", "SEA", "ATL", "DFW", "DEN", "IAD", "ORD"] },
+  IT: { name: "Italy", airports: ["ROM", "MIL", "VCE", "NAP", "FLR", "BLQ", "PSA", "CTA"] },
+  ES: { name: "Spain", airports: ["MAD", "BCN", "AGP", "PMI", "ALC", "VLC", "SVQ", "BIO"] },
+  DE: { name: "Germany", airports: ["BER", "FRA", "MUC", "HAM", "DUS", "CGN", "STR"] },
+  FR: { name: "France", airports: ["PAR", "NCE", "LYS", "MRS", "TLS", "BOD"] },
+  GB: { name: "United Kingdom", airports: ["LON", "MAN", "EDI", "BHX", "GLA", "BRS"] },
+  GR: { name: "Greece", airports: ["ATH", "SKG", "HER", "RHO", "CFU", "JTR"] },
+  PT: { name: "Portugal", airports: ["LIS", "OPO", "FAO", "FNC"] },
+  PL: { name: "Poland", airports: ["WAW", "KRK", "GDN", "WRO", "KTW", "POZ", "RZE", "LUZ"] },
+  BE: { name: "Belgium", airports: ["BRU", "CRL", "ANR"] },
+  AT: { name: "Austria", airports: ["VIE", "SZG", "INN", "GRZ"] },
+  CH: { name: "Switzerland", airports: ["ZRH", "GVA", "BSL"] },
+  CZ: { name: "Czechia", airports: ["PRG", "BRQ", "OSR"] },
+  HU: { name: "Hungary", airports: ["BUD", "DEB"] },
+  RO: { name: "Romania", airports: ["BUH", "CLJ", "TSR", "IAS"] },
+  BG: { name: "Bulgaria", airports: ["SOF", "VAR", "BOJ"] },
+  HR: { name: "Croatia", airports: ["ZAG", "SPU", "DBV", "ZAD"] },
+  IE: { name: "Ireland", airports: ["DUB", "ORK", "SNN"] },
+  SE: { name: "Sweden", airports: ["STO", "GOT", "MMX"] },
+  NO: { name: "Norway", airports: ["OSL", "BGO", "TRD", "SVG"] },
+  DK: { name: "Denmark", airports: ["CPH", "AAL", "BLL"] },
+  FI: { name: "Finland", airports: ["HEL", "TMP", "TKU"] },
+  SK: { name: "Slovakia", airports: ["BTS", "KSC"] },
+  SI: { name: "Slovenia", airports: ["LJU"] },
+  LT: { name: "Lithuania", airports: ["VNO", "KUN"] },
+  LV: { name: "Latvia", airports: ["RIX"] },
+  EE: { name: "Estonia", airports: ["TLL"] },
+  RS: { name: "Serbia", airports: ["BEG", "INI"] },
+  UA: { name: "Ukraine", airports: ["KBP", "ODS", "LWO"] },
+  MD: { name: "Moldova", airports: ["RMO"] },
+  AL: { name: "Albania", airports: ["TIA"] },
+  MK: { name: "North Macedonia", airports: ["SKP"] },
+  BA: { name: "Bosnia and Herzegovina", airports: ["SJJ"] },
+  ME: { name: "Montenegro", airports: ["TGD", "TIV"] },
+  IS: { name: "Iceland", airports: ["KEF", "RKV"] },
+  LU: { name: "Luxembourg", airports: ["LUX"] },
+  MT: { name: "Malta", airports: ["MLA"] },
+  CY: { name: "Cyprus", airports: ["LCA", "PFO"] },
+  JP: { name: "Japan", airports: ["TYO", "OSA", "NGO", "FUK", "CTS"] },
+  TH: { name: "Thailand", airports: ["BKK", "HKT", "CNX", "DMK"] },
+  AE: { name: "United Arab Emirates", airports: ["DXB", "AUH", "SHJ"] },
+  SA: { name: "Saudi Arabia", airports: ["RUH", "JED", "DMM"] },
+  QA: { name: "Qatar", airports: ["DOH"] },
+  BH: { name: "Bahrain", airports: ["BAH"] },
+  KW: { name: "Kuwait", airports: ["KWI"] },
+  IL: { name: "Israel", airports: ["TLV", "ETH"] },
+  EG: { name: "Egypt", airports: ["CAI", "HRG", "SSH", "ALY"] },
+  MA: { name: "Morocco", airports: ["CMN", "RAK", "AGA", "FEZ"] },
+  TN: { name: "Tunisia", airports: ["TUN", "DJE", "NBE"] },
+  ZA: { name: "South Africa", airports: ["JNB", "CPT", "DUR"] },
+  IN: { name: "India", airports: ["DEL", "BOM", "BLR", "MAA", "HYD", "CCU", "GOI"] },
+  CN: { name: "China", airports: ["PEK", "SHA", "CAN", "SZX", "CTU"] },
+  KR: { name: "South Korea", airports: ["SEL", "PUS", "CJU"] },
+  SG: { name: "Singapore", airports: ["SIN"] },
+  MY: { name: "Malaysia", airports: ["KUL", "PEN", "JHB"] },
+  ID: { name: "Indonesia", airports: ["JKT", "DPS", "SUB"] },
+  PH: { name: "Philippines", airports: ["MNL", "CEB", "CRK"] },
+  VN: { name: "Vietnam", airports: ["SGN", "HAN", "DAD"] },
+  AU: { name: "Australia", airports: ["SYD", "MEL", "BNE", "PER", "ADL"] },
+  NZ: { name: "New Zealand", airports: ["AKL", "WLG", "CHC"] },
+  CA: { name: "Canada", airports: ["YTO", "YVR", "YUL", "YYC", "YOW"] },
+  MX: { name: "Mexico", airports: ["MEX", "CUN", "GDL", "MTY"] },
+  BR: { name: "Brazil", airports: ["SAO", "RIO", "BSB", "REC"] },
+  AR: { name: "Argentina", airports: ["BUE", "COR", "MDZ"] },
+  CL: { name: "Chile", airports: ["SCL"] },
+  CO: { name: "Colombia", airports: ["BOG", "MDE", "CTG"] },
+  PE: { name: "Peru", airports: ["LIM", "CUZ"] },
+  RU: { name: "Russia", airports: ["MOW", "LED", "SVX"] },
+  GE: { name: "Georgia", airports: ["TBS", "KUT"] },
+  AM: { name: "Armenia", airports: ["EVN"] },
+  AZ: { name: "Azerbaijan", airports: ["GYD"] },
+  KZ: { name: "Kazakhstan", airports: ["ALA", "NQZ"] },
+};
+
+export const COUNTRIES: PlaceOption[] = Object.entries(COUNTRY_HUBS).map(
+  ([code, meta]) => ({
+    id: `country-${code}`,
+    code,
+    name: meta.name,
+    kind: "country" as const,
+    countryCode: code,
     subtitle: "All cities · Country",
-    airports: ["IST", "SAW", "AYT", "ESB", "ADB", "BJV", "TZX", "GZT", "DLM", "ASR"],
-  },
-  {
-    id: "country-NL",
-    code: "NL",
-    name: "Netherlands",
-    kind: "country",
-    countryCode: "NL",
-    subtitle: "All cities · Country",
-    airports: ["AMS", "EIN", "RTM", "GRQ"],
-  },
-  {
-    id: "country-US",
-    code: "US",
-    name: "United States",
-    kind: "country",
-    countryCode: "US",
-    subtitle: "All cities · Country",
-    airports: ["NYC", "LAX", "CHI", "MIA", "SFO", "BOS", "SEA", "ATL", "DFW", "DEN", "IAD", "ORD"],
-  },
-  {
-    id: "country-IT",
-    code: "IT",
-    name: "Italy",
-    kind: "country",
-    countryCode: "IT",
-    subtitle: "All cities · Country",
-    airports: ["ROM", "MIL", "VCE", "NAP", "FLR", "BLQ", "PSA", "CTA"],
-  },
-  {
-    id: "country-ES",
-    code: "ES",
-    name: "Spain",
-    kind: "country",
-    countryCode: "ES",
-    subtitle: "All cities · Country",
-    airports: ["MAD", "BCN", "AGP", "PMI", "ALC", "VLC", "SVQ"],
-  },
-  {
-    id: "country-DE",
-    code: "DE",
-    name: "Germany",
-    kind: "country",
-    countryCode: "DE",
-    subtitle: "All cities · Country",
-    airports: ["BER", "FRA", "MUC", "HAM", "DUS", "CGN", "STR"],
-  },
-  {
-    id: "country-FR",
-    code: "FR",
-    name: "France",
-    kind: "country",
-    countryCode: "FR",
-    subtitle: "All cities · Country",
-    airports: ["PAR", "NCE", "LYS", "MRS", "TLS", "BOD"],
-  },
-  {
-    id: "country-GB",
-    code: "GB",
-    name: "United Kingdom",
-    kind: "country",
-    countryCode: "GB",
-    subtitle: "All cities · Country",
-    airports: ["LON", "MAN", "EDI", "BHX", "GLA", "BRS"],
-  },
-  {
-    id: "country-GR",
-    code: "GR",
-    name: "Greece",
-    kind: "country",
-    countryCode: "GR",
-    subtitle: "All cities · Country",
-    airports: ["ATH", "SKG", "HER", "RHO", "CFU", "JTR"],
-  },
-  {
-    id: "country-PT",
-    code: "PT",
-    name: "Portugal",
-    kind: "country",
-    countryCode: "PT",
-    subtitle: "All cities · Country",
-    airports: ["LIS", "OPO", "FAO", "FNC"],
-  },
-  {
-    id: "country-JP",
-    code: "JP",
-    name: "Japan",
-    kind: "country",
-    countryCode: "JP",
-    subtitle: "All cities · Country",
-    airports: ["TYO", "OSA", "NGO", "FUK", "CTS"],
-  },
-  {
-    id: "country-TH",
-    code: "TH",
-    name: "Thailand",
-    kind: "country",
-    countryCode: "TH",
-    subtitle: "All cities · Country",
-    airports: ["BKK", "HKT", "CNX", "DMK"],
-  },
-  {
-    id: "country-AE",
-    code: "AE",
-    name: "United Arab Emirates",
-    kind: "country",
-    countryCode: "AE",
-    subtitle: "All cities · Country",
-    airports: ["DXB", "AUH", "SHJ"],
-  },
-  {
-    id: "country-ZA",
-    code: "ZA",
-    name: "South Africa",
-    kind: "country",
-    countryCode: "ZA",
-    subtitle: "All cities · Country",
-    airports: ["JNB", "CPT", "DUR"],
-  },
-  {
-    id: "country-IN",
-    code: "IN",
-    name: "India",
-    kind: "country",
-    countryCode: "IN",
-    subtitle: "All cities · Country",
-    airports: ["DEL", "BOM", "BLR", "MAA", "HYD", "CCU", "GOI"],
-  },
-];
+    airports: meta.airports,
+  })
+);
+
+export function countryHubs(code: string): string[] | null {
+  const hubs = COUNTRY_HUBS[code.toUpperCase()]?.airports;
+  return hubs?.length ? hubs : null;
+}
 
 export const ANYWHERE: PlaceOption = {
   id: "anywhere",
@@ -474,16 +449,19 @@ export function expandPlaceToSearchCodes(
   if (upper === "ANYWHERE" || kind === "anywhere") {
     return ANYWHERE.airports ?? [];
   }
-  if (kind === "country" || COUNTRIES.some((c) => c.code === upper)) {
+  if (explicitAirports?.length && (kind === "country" || kind === "region")) {
+    return explicitAirports;
+  }
+  // 2-letter codes are ISO countries — never send "PL" raw to Google Flights
+  if (kind === "country" || (upper.length === 2 && COUNTRY_HUBS[upper])) {
+    const hubs = countryHubs(upper);
+    if (hubs) return hubs;
     const country = COUNTRIES.find((c) => c.code === upper || c.id === code);
     if (country?.airports?.length) return country.airports;
   }
   if (kind === "region" || REGIONS.some((r) => r.code === upper)) {
     const region = REGIONS.find((r) => r.code === upper || r.id === code);
     if (region?.airports?.length) return region.airports;
-  }
-  if (explicitAirports?.length && (kind === "country" || kind === "region")) {
-    return explicitAirports;
   }
   // City metro codes: use city code when it differs from member airports
   // (PAR/LON/NYC). If the city code is also an airport code (IST), expand
@@ -494,6 +472,10 @@ export function expandPlaceToSearchCodes(
       return [...meta.airports];
     }
     return [upper];
+  }
+  // Unknown 2-letter code still looks like a country — do not query as airport
+  if (kind === "country" || upper.length === 2) {
+    return [];
   }
   return [upper];
 }

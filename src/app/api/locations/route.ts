@@ -3,9 +3,11 @@ import { NextResponse } from "next/server";
 import {
   ANYWHERE,
   COUNTRIES,
+  COUNTRY_HUBS,
   REGIONS,
   airportsForCityQuery,
   cityPlace,
+  countryHubs,
   expandPlaceToAirports,
   findStaticPlace,
   placeLabel,
@@ -52,14 +54,18 @@ function mapTp(place: TpPlace): LocationResult | null {
     if (known) {
       return { ...known, id: known.id };
     }
+    const hubs = countryHubs(place.code);
     return {
       id: `country-${place.code}`,
       code: place.code,
-      name: place.name,
+      name: COUNTRY_HUBS[place.code]?.name ?? place.name,
       kind: "country",
       countryCode: place.code,
       countryName: place.name,
-      subtitle: `All cities · ${place.code}`,
+      subtitle: hubs?.length
+        ? `All cities · ${hubs.slice(0, 4).join(", ")}…`
+        : `All cities · ${place.code}`,
+      airports: hubs ?? undefined,
     };
   }
 
