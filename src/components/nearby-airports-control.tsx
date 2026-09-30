@@ -51,13 +51,16 @@ export function NearbyAirportsControl({ place, value, onChange, label }: Props) 
   onChangeRef.current = onChange;
   const selectedRef = useRef(value.selected);
   selectedRef.current = value.selected;
-  const optionsLenRef = useRef(value.options.length);
-  optionsLenRef.current = value.options.length;
+  const optionCodesRef = useRef<string[]>([]);
+  optionCodesRef.current = value.options.map((a) => a.code);
+  /** Airports the user explicitly unchecked — survive radius reloads. */
+  const deselectedRef = useRef<Set<string>>(new Set());
 
   // Reset selection cache when the place changes
   useEffect(() => {
     if (prevPlaceKey.current === placeKey) return;
     prevPlaceKey.current = placeKey;
+    deselectedRef.current = new Set();
     if (!place || !supported) {
       onChangeRef.current(emptyNearbyState(value.radiusKm));
       return;
@@ -90,17 +93,22 @@ export function NearbyAirportsControl({ place, value, onChange, label }: Props) 
         };
         if (cancelled) return;
         const options = data.airports ?? [];
-        const codes = new Set(options.map((a) => a.code));
-        const prevSelected = selectedRef.current.filter((c) => codes.has(c));
-        const selected =
-          optionsLenRef.current === 0 || prevSelected.length === 0
+        const knownBefore = new Set(optionCodesRef.current);
+        const selected = options
+          .filter((a) => !deselectedRef.current.has(a.code))
+          .map((a) => a.code);
+        // First load (no prior options): select everything
+        const nextSelected =
+          knownBefore.size === 0 && deselectedRef.current.size === 0
             ? options.map((a) => a.code)
-            : prevSelected;
+            : selected.length
+              ? selected
+              : options.slice(0, 1).map((a) => a.code);
         onChangeRef.current({
           enabled: true,
           radiusKm: value.radiusKm,
           options,
-          selected,
+          selected: nextSelected,
         });
       } catch {
         if (!cancelled) {
@@ -134,10 +142,13 @@ export function NearbyAirportsControl({ place, value, onChange, label }: Props) 
 
   const toggleAirport = (code: string, checked: boolean) => {
     const set = new Set(value.selected);
-    if (checked) set.add(code);
-    else {
+    if (checked) {
+      set.add(code);
+      deselectedRef.current.delete(code);
+    } else {
       if (set.size <= 1) return;
       set.delete(code);
+      deselectedRef.current.add(code);
     }
     onChange({ ...value, selected: [...set] });
   };
@@ -149,6 +160,7 @@ export function NearbyAirportsControl({ place, value, onChange, label }: Props) 
           checked={value.enabled}
           onCheckedChange={(v) => {
             const enabled = Boolean(v);
+            if (!enabled) deselectedRef.current = new Set();
             onChange({
               ...value,
               enabled,
