@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { searchFlightsExpanded } from "@/lib/flights";
+import { searchKiwiFlights } from "@/lib/kiwi";
 import { countryHubs, expandPlaceToSearchCodes } from "@/lib/regions";
 import type { CabinClass, TripType } from "@/lib/types";
 
@@ -114,6 +115,38 @@ export async function GET(request: Request) {
         .map((a) => a.trim())
         .filter(Boolean)
     : undefined;
+  const limit = limitRaw ? Number(limitRaw) : 100;
+  const filters = {
+    maxStops: Number.isFinite(maxStops as number) ? (maxStops as number) : null,
+    maxLayoverMinutes: Number.isFinite(maxLayover as number)
+      ? (maxLayover as number)
+      : null,
+    maxPrice: Number.isFinite(maxPrice as number) ? (maxPrice as number) : null,
+    airlines,
+    limit,
+  };
+
+  // Prefer Kiwi/Tequila (or FlightList proxy) for EU ULCC coverage + deep links.
+  // Falls back to Google Flights when Kiwi cannot represent the place (region/
+  // Anywhere) or when the upstream search is unavailable.
+  const kiwi = await searchKiwiFlights({
+    from,
+    to,
+    fromKind,
+    toKind,
+    dateFrom,
+    dateTo,
+    returnFrom,
+    returnTo,
+    trip,
+    seat,
+    currency,
+    ...filters,
+  });
+
+  if (kiwi?.ok && kiwi.flights.length > 0) {
+    return NextResponse.json(kiwi);
+  }
 
   const result = await searchFlightsExpanded({
     from,
@@ -127,14 +160,22 @@ export async function GET(request: Request) {
     trip,
     seat,
     currency,
-    maxStops: Number.isFinite(maxStops as number) ? (maxStops as number) : null,
-    maxLayoverMinutes: Number.isFinite(maxLayover as number)
-      ? (maxLayover as number)
-      : null,
-    maxPrice: Number.isFinite(maxPrice as number) ? (maxPrice as number) : null,
-    airlines,
-    limit: limitRaw ? Number(limitRaw) : 100,
+    ...filters,
   });
 
-  return NextResponse.json(result, { status: result.ok ? 200 : 500 });
+  const tagged = {
+    ...result,
+    flights: result.flights.map((f) =>
+      f.provider ? f : { ...f, provider: "google" as const }
+    ),
+    warning:
+      result.warning ||
+      (kiwi?.warning
+        ? kiwi.warning
+        : kiwi === null
+          ? undefined
+          : "Kiwi unavailable — showing Google Flights results."),
+  };
+
+  return NextResponse.json(tagged, { status: tagged.ok ? 200 : 500 });
 }

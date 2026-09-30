@@ -37,6 +37,9 @@ export type FlightOffer = {
   returnSegments?: FlightSegment[] | null;
   outboundPrice?: number;
   returnPrice?: number;
+  /** Affiliate / booking deep link (Kiwi). Falls back to Google Flights in UI. */
+  deepLink?: string | null;
+  provider?: "kiwi" | "google";
 };
 
 export type FlightSearchParams = {

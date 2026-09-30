@@ -50,6 +50,11 @@ function googleFlightsUrl(flight: FlightOffer) {
   return `https://www.google.com/travel/flights#flt=${origin}.${dest}.${date}`;
 }
 
+function dealUrl(flight: FlightOffer) {
+  if (flight.deepLink) return flight.deepLink;
+  return googleFlightsUrl(flight);
+}
+
 function SegmentList({
   title,
   segments,
@@ -225,7 +230,7 @@ function FlightRow({ flight }: { flight: FlightOffer }) {
             ) : null}
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <a
-                href={googleFlightsUrl(flight)}
+                href={dealUrl(flight)}
                 target="_blank"
                 rel="noreferrer"
                 className={cn(
@@ -237,7 +242,9 @@ function FlightRow({ flight }: { flight: FlightOffer }) {
                 <ExternalLink className="size-4" />
               </a>
               <span className="text-xs text-slate-500">
-                Opens Google Flights to compare & book
+                {flight.deepLink
+                  ? "Opens booking link (Kiwi)"
+                  : "Opens Google Flights to compare & book"}
               </span>
             </div>
           </div>
