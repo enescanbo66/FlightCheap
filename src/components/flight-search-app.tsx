@@ -2,7 +2,7 @@
 
 import { addDays, format } from "date-fns";
 import { ArrowLeftRight, Search, SlidersHorizontal } from "lucide-react";
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 
 import { DateRangePicker } from "@/components/date-range-picker";
@@ -59,13 +59,13 @@ export function FlightSearchApp() {
   const [maxPrice, setMaxPrice] = useState<number>(1500);
   const [priceEnabled, setPriceEnabled] = useState(false);
   const [airlineQuery, setAirlineQuery] = useState("");
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
 
   const [flights, setFlights] = useState<FlightOffer[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [loading, setLoading] = useState(false);
 
   const canSearch = Boolean(from && to && outbound?.from);
 
@@ -74,7 +74,7 @@ export function FlightSearchApp() {
     setTo(from);
   };
 
-  const onSearch = () => {
+  const onSearch = async () => {
     if (!from || !to || !outbound?.from) return;
 
     const dateFrom = format(outbound.from, "yyyy-MM-dd");
@@ -99,30 +99,31 @@ export function FlightSearchApp() {
     if (priceEnabled) params.set("maxPrice", String(maxPrice));
     if (airlineQuery.trim()) params.set("airlines", airlineQuery.trim());
 
-    startTransition(async () => {
-      setSearched(true);
-      setError(null);
-      setWarning(null);
-      try {
-        const res = await fetch(`/api/flights?${params.toString()}`);
-        const data = (await res.json()) as {
-          ok: boolean;
-          flights: FlightOffer[];
-          error?: string;
-          warning?: string;
-        };
-        if (!res.ok || !data.ok) {
-          setFlights([]);
-          setError(data.error ?? "Could not search flights");
-          return;
-        }
-        setFlights(data.flights ?? []);
-        setWarning(data.warning ?? null);
-      } catch (err) {
+    setSearched(true);
+    setError(null);
+    setWarning(null);
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/flights?${params.toString()}`);
+      const data = (await res.json()) as {
+        ok: boolean;
+        flights: FlightOffer[];
+        error?: string;
+        warning?: string;
+      };
+      if (!res.ok || !data.ok) {
         setFlights([]);
-        setError(err instanceof Error ? err.message : "Network error");
+        setError(data.error ?? "Could not search flights");
+        return;
       }
-    });
+      setFlights(data.flights ?? []);
+      setWarning(data.warning ?? null);
+    } catch (err) {
+      setFlights([]);
+      setError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const filterHint = useMemo(() => {
@@ -249,6 +250,12 @@ export function FlightSearchApp() {
               onValueChange={(v) => {
                 if (v) setSeat(v as CabinClass);
               }}
+              items={{
+                economy: "Economy",
+                "premium-economy": "Premium economy",
+                business: "Business",
+                first: "First",
+              }}
             >
               <SelectTrigger className="h-10 w-[11rem] border-sky-900/10 bg-white">
                 <SelectValue />
@@ -271,15 +278,20 @@ export function FlightSearchApp() {
               Filters
             </Button>
 
-            <Button
+            <button
               type="button"
-              disabled={!canSearch || isPending}
-              onClick={onSearch}
-              className="ml-auto h-11 min-w-[9rem] bg-sky-700 px-6 text-white hover:bg-sky-800"
+              disabled={!canSearch || loading}
+              onClick={() => {
+                void onSearch();
+              }}
+              className={cn(
+                buttonVariants(),
+                "ml-auto h-11 min-w-[9rem] bg-sky-700 px-6 text-white hover:bg-sky-800 disabled:opacity-50"
+              )}
             >
               <Search className="size-4" />
-              {isPending ? "Searching…" : "Search"}
-            </Button>
+              {loading ? "Searching…" : "Search"}
+            </button>
           </div>
 
           <div
@@ -353,12 +365,12 @@ export function FlightSearchApp() {
 
       <FlightResults
         flights={flights}
-        loading={isPending}
+        loading={loading}
         error={error}
         warning={warning}
       />
 
-      {!searched && !isPending ? (
+      {!searched && !loading ? (
         <p className="mt-4 text-center text-xs text-slate-500">
           Tip: try Netherlands → Italy or Europe → South East Asia to uncover cheaper routes.
         </p>
