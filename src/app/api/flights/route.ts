@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   const returnTo = searchParams.get("returnTo") ?? undefined;
   const trip = (searchParams.get("trip") as TripType | null) ?? "one-way";
   const seat = (searchParams.get("seat") as CabinClass | null) ?? "economy";
-  const currency = (searchParams.get("currency") ?? "USD").toUpperCase();
+  const currency = (searchParams.get("currency") ?? "EUR").toUpperCase();
   const maxStopsRaw = searchParams.get("maxStops");
   const maxLayoverRaw = searchParams.get("maxLayover");
   const maxPriceRaw = searchParams.get("maxPrice");

@@ -57,7 +57,7 @@ export function FlightSearchApp() {
     to: addDays(new Date(), 35),
   });
   const [seat, setSeat] = useState<CabinClass>("economy");
-  const [currency, setCurrency] = useState("USD");
+  const [currency, setCurrency] = useState("EUR");
   const [stops, setStops] = useState<StopsFilter>("any");
   const [layoverEnabled, setLayoverEnabled] = useState(false);
   const [maxLayoverHours, setMaxLayoverHours] = useState(6);
@@ -79,9 +79,10 @@ export function FlightSearchApp() {
     setTo(from);
   };
 
-  const onSearch = async () => {
+  const onSearch = async (currencyOverride?: string) => {
     if (!from || !to || !outbound?.from) return;
 
+    const activeCurrency = currencyOverride ?? currency;
     const dateFrom = format(outbound.from, "yyyy-MM-dd");
     const dateTo = format(outbound.to ?? outbound.from, "yyyy-MM-dd");
 
@@ -94,7 +95,7 @@ export function FlightSearchApp() {
       dateTo,
       trip,
       seat,
-      currency,
+      currency: activeCurrency,
       limit: "120",
     });
 
@@ -134,6 +135,15 @@ export function FlightSearchApp() {
     }
   };
 
+  const onCurrencyChange = (next: string | null) => {
+    if (!next || next === currency) return;
+    setCurrency(next);
+    // Re-run the last search in the new currency when results are already shown
+    if (searched && from && to && outbound?.from) {
+      void onSearch(next);
+    }
+  };
+
   const filterHint = useMemo(() => {
     const bits = [];
     if (stops === "0") bits.push("direct only");
@@ -165,24 +175,31 @@ export function FlightSearchApp() {
             FlyList
           </span>
         </a>
-        <div className="flex items-center gap-2">
-          <Select
-            value={currency}
-            onValueChange={(v) => {
-              if (v) setCurrency(v);
-            }}
-          >
-            <SelectTrigger className="h-9 w-[5.5rem] border-sky-900/10 bg-white/80">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {["USD", "EUR", "TRY", "GBP"].map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex items-center gap-1.5 rounded-full border border-sky-900/10 bg-white/90 p-1 shadow-sm">
+          {(
+            [
+              ["EUR", "€ Euro"],
+              ["USD", "$ USD"],
+              ["TRY", "₺ TL"],
+            ] as const
+          ).map(([code, label]) => (
+            <button
+              key={code}
+              type="button"
+              onClick={() => onCurrencyChange(code)}
+              className={cn(
+                "rounded-full px-3 py-1.5 text-xs font-semibold transition-colors sm:text-sm",
+                currency === code
+                  ? "bg-sky-700 text-white"
+                  : "text-sky-900 hover:bg-sky-50"
+              )}
+              aria-pressed={currency === code}
+              title={label}
+            >
+              <span className="sm:hidden">{code}</span>
+              <span className="hidden sm:inline">{label}</span>
+            </button>
+          ))}
         </div>
       </header>
 

@@ -79,7 +79,7 @@ export async function searchFlightsExpanded(
     "--seat",
     params.seat ?? "economy",
     "--currency",
-    params.currency ?? "USD",
+    params.currency ?? "EUR",
     "--limit",
     String(params.limit ?? 100),
     "--workers",

@@ -10,8 +10,10 @@ import type { FlightOffer, FlightSegment } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 function formatMoney(price: number, currency: string) {
+  const locale =
+    currency === "TRY" ? "tr-TR" : currency === "EUR" ? "de-DE" : "en-US";
   try {
-    return new Intl.NumberFormat("en-US", {
+    return new Intl.NumberFormat(locale, {
       style: "currency",
       currency,
       maximumFractionDigits: 0,
