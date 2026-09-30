@@ -1,6 +1,15 @@
 import { NextResponse } from "next/server";
 
-import { expandPlaceToAirports, findStaticPlace, ANYWHERE, REGIONS, COUNTRIES } from "@/lib/regions";
+import {
+  ANYWHERE,
+  COUNTRIES,
+  REGIONS,
+  airportsForCityQuery,
+  cityPlace,
+  expandPlaceToAirports,
+  findStaticPlace,
+  placeLabel,
+} from "@/lib/regions";
 import type { LocationResult } from "@/lib/types";
 
 type TpPlace = {
@@ -15,62 +24,106 @@ type TpPlace = {
   main_airport_name?: string | null;
 };
 
+function enrichCity(place: LocationResult): LocationResult {
+  const city = cityPlace(place.code);
+  if (place.kind === "city" || city) {
+    const base = city ?? place;
+    const label = placeLabel(base);
+    return {
+      ...base,
+      id: place.id.startsWith("city-") ? place.id : `city-${place.code}`,
+      kind: "city",
+      name: base.name,
+      subtitle: label.secondary,
+      airports: base.airports ?? city?.airports,
+    };
+  }
+  return place;
+}
+
 function mapTp(place: TpPlace): LocationResult | null {
   if (!place.code || !place.name) return null;
-  const kind = place.type === "airport" ? "airport" : "city";
-  const subtitle =
-    kind === "airport"
-      ? [place.city_name, place.country_name].filter(Boolean).join(", ")
-      : place.country_name ?? "City";
 
-  return {
-    id: place.id ?? `${kind}-${place.code}`,
+  // Travelpayouts country type (2-letter)
+  if (place.type === "country" || (place.code.length === 2 && !place.city_code)) {
+    const known = COUNTRIES.find(
+      (c) => c.code === place.code || c.countryCode === place.code
+    );
+    if (known) {
+      return { ...known, id: known.id };
+    }
+    return {
+      id: `country-${place.code}`,
+      code: place.code,
+      name: place.name,
+      kind: "country",
+      countryCode: place.code,
+      countryName: place.name,
+      subtitle: `All cities · ${place.code}`,
+    };
+  }
+
+  if (place.type === "airport") {
+    return {
+      id: place.id ?? `airport-${place.code}`,
+      code: place.code,
+      name: place.name,
+      kind: "airport",
+      countryCode: place.country_code,
+      countryName: place.country_name,
+      subtitle: [place.city_name, "Airport"].filter(Boolean).join(" · "),
+    };
+  }
+
+  // City
+  const mapped: LocationResult = {
+    id: place.id ?? `city-${place.code}`,
     code: place.code,
     name: place.name,
-    kind,
+    kind: "city",
     countryCode: place.country_code,
     countryName: place.country_name,
-    subtitle,
+    subtitle: place.country_name ?? "City",
   };
+  return enrichCity(mapped);
 }
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get("q") ?? "").trim();
 
-  const staticHits = findStaticPlace(q).slice(0, 8);
+  const staticHits = findStaticPlace(q).slice(0, 10);
+  const cityAirports = airportsForCityQuery(q);
 
   if (!q) {
     const popular: LocationResult[] = [
       ANYWHERE,
-      ...REGIONS.slice(0, 4),
-      {
+      ...COUNTRIES.filter((c) => ["NL", "TR", "US", "FR"].includes(c.code)),
+      ...REGIONS.slice(0, 3),
+      enrichCity({
         id: "city-IST",
         code: "IST",
         name: "Istanbul",
         kind: "city",
         countryCode: "TR",
         countryName: "Turkey",
-        subtitle: "Turkey",
-      },
-      {
+      }),
+      enrichCity({
+        id: "city-PAR",
+        code: "PAR",
+        name: "Paris",
+        kind: "city",
+        countryCode: "FR",
+        countryName: "France",
+      }),
+      enrichCity({
         id: "city-LON",
         code: "LON",
         name: "London",
         kind: "city",
         countryCode: "GB",
         countryName: "United Kingdom",
-        subtitle: "United Kingdom",
-      },
-      {
-        id: "city-NYC",
-        code: "NYC",
-        name: "New York",
-        kind: "city",
-        countryCode: "US",
-        countryName: "United States",
-        subtitle: "United States",
-      },
+      }),
     ];
     return NextResponse.json({ results: popular });
   }
@@ -91,42 +144,68 @@ export async function GET(request: Request) {
     if (res.ok) {
       const data = (await res.json()) as TpPlace[];
       remote = data
-        .slice(0, 12)
+        .slice(0, 16)
         .map(mapTp)
         .filter((x): x is LocationResult => Boolean(x));
-
-      // Enrich country hits with our airport lists when available
-      remote = remote.map((place) => {
-        if (place.kind !== "city" && place.kind !== "airport") return place;
-        const country = COUNTRIES.find(
-          (c) => c.countryCode === place.countryCode || c.code === place.code
-        );
-        if (place.code.length === 2 && country) {
-          return {
-            ...country,
-            id: country.id,
-          };
-        }
-        return place;
-      });
     }
   } catch {
     // autocomplete is best-effort
   }
 
-  // Prefer exact static region/country matches first
   const merged: LocationResult[] = [];
   const seen = new Set<string>();
-  for (const item of [...staticHits, ...remote]) {
-    const key = `${item.kind}:${item.code}:${item.name}`;
+  for (const item of [...staticHits, ...remote, ...cityAirports]) {
+    let place = item;
+    if (place.kind === "city") place = enrichCity(place);
+    if (place.kind === "country" && !place.subtitle?.includes("All cities")) {
+      place = { ...place, subtitle: `All cities · ${place.code}` };
+    }
+    const key = `${place.kind}:${place.code}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    if (!item.airports) {
-      const airports = expandPlaceToAirports(item);
-      if (airports.length > 1) item.airports = airports;
+    if (!place.airports) {
+      const airports = expandPlaceToAirports(place);
+      if (airports.length > 1) place = { ...place, airports };
     }
-    merged.push(item);
+    merged.push(place);
   }
 
-  return NextResponse.json({ results: merged.slice(0, 16) });
+  const qLower = q.toLowerCase();
+  const rank = (p: LocationResult) => {
+    const name = p.name.toLowerCase();
+    const exact = name === qLower || p.code.toLowerCase() === qLower ? 0 : 1;
+    const prefix = name.startsWith(qLower) ? 0 : 2;
+    const kindRank =
+      p.kind === "country" || p.kind === "region"
+        ? 0
+        : p.kind === "city"
+          ? 1
+          : p.kind === "airport"
+            ? 2
+            : 3;
+    // Prefer airports that belong to a matched city name
+    const cityAirportBoost =
+      p.kind === "airport" &&
+      (p.subtitle?.toLowerCase().includes(qLower) ||
+        p.name.toLowerCase().includes(qLower))
+        ? 0
+        : p.kind === "airport"
+          ? 3
+          : 0;
+    return exact * 100 + prefix * 20 + kindRank + cityAirportBoost;
+  };
+  merged.sort((a, b) => rank(a) - rank(b));
+
+  // Drop weak remote noise when we already have strong local matches
+  const strong = merged.filter(
+    (p) =>
+      p.name.toLowerCase().includes(qLower) ||
+      p.code.toLowerCase() === qLower ||
+      p.subtitle?.toLowerCase().includes(qLower) ||
+      p.kind === "country" ||
+      p.kind === "region"
+  );
+  const results = (strong.length >= 3 ? strong : merged).slice(0, 16);
+
+  return NextResponse.json({ results });
 }

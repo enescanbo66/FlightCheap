@@ -27,9 +27,16 @@ export type FlightOffer = {
   direct: boolean;
   durationMinutes: number;
   durationLabel: string;
+  maxLayoverMinutes?: number | null;
+  trip?: TripType;
   departure: FlightEndpoint;
   arrival: FlightEndpoint;
   segments: FlightSegment[];
+  returnDeparture?: FlightEndpoint | null;
+  returnArrival?: FlightEndpoint | null;
+  returnSegments?: FlightSegment[] | null;
+  outboundPrice?: number;
+  returnPrice?: number;
 };
 
 export type FlightSearchParams = {
@@ -43,6 +50,7 @@ export type FlightSearchParams = {
   seat?: CabinClass;
   currency?: string;
   maxStops?: number | null;
+  maxLayoverMinutes?: number | null;
   maxPrice?: number | null;
   airlines?: string[];
   limit?: number;

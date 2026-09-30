@@ -5,7 +5,7 @@ import type { FlightSearchParams, FlightSearchResponse, FlightOffer } from "@/li
 
 const SCRIPT = path.join(process.cwd(), "scripts", "search_flights.py");
 
-function runPython(args: string[], timeoutMs = 180_000): Promise<string> {
+function runPython(args: string[], timeoutMs = 240_000): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawn("python3", [SCRIPT, ...args], {
       env: { ...process.env, PYTHONUNBUFFERED: "1" },
@@ -39,22 +39,35 @@ function runPython(args: string[], timeoutMs = 180_000): Promise<string> {
   });
 }
 
-/** Search one or many destination codes in a single Python process. */
+/** Search expanding both origins and destinations in one Python process. */
 export async function searchFlightsExpanded(
-  params: FlightSearchParams & { destinations: string[] }
+  params: FlightSearchParams & {
+    origins: string[];
+    destinations: string[];
+    maxLayoverMinutes?: number | null;
+  }
 ): Promise<FlightSearchResponse> {
+  const origins = params.origins
+    .map((d) => d.trim().toUpperCase())
+    .filter(Boolean)
+    .slice(0, 12);
   const destinations = params.destinations
     .map((d) => d.trim().toUpperCase())
     .filter(Boolean)
-    .slice(0, 8);
+    .slice(0, 12);
 
-  if (!destinations.length) {
-    return { ok: false, count: 0, flights: [], error: "No destinations to search" };
+  if (!origins.length || !destinations.length) {
+    return {
+      ok: false,
+      count: 0,
+      flights: [],
+      error: "No origins or destinations to search",
+    };
   }
 
   const args = [
     "--from",
-    params.from,
+    origins.join(","),
     "--to",
     destinations.join(","),
     "--date-from",
@@ -68,20 +81,25 @@ export async function searchFlightsExpanded(
     "--currency",
     params.currency ?? "USD",
     "--limit",
-    String(params.limit ?? 80),
+    String(params.limit ?? 100),
     "--workers",
-    destinations.length > 1 ? "8" : "6",
+    "10",
   ];
 
   if (params.returnFrom) args.push("--return-from", params.returnFrom);
   if (params.returnTo) args.push("--return-to", params.returnTo);
   if (params.maxStops != null) args.push("--max-stops", String(params.maxStops));
+  if (params.maxLayoverMinutes != null) {
+    args.push("--max-layover", String(params.maxLayoverMinutes));
+  }
   if (params.maxPrice != null) args.push("--max-price", String(params.maxPrice));
   if (params.airlines?.length) args.push("--airlines", params.airlines.join(","));
 
   try {
     const raw = await runPython(args);
-    const parsed = JSON.parse(raw) as FlightSearchResponse & { flights?: FlightOffer[] };
+    const parsed = JSON.parse(raw) as FlightSearchResponse & {
+      flights?: FlightOffer[];
+    };
     return {
       ok: true,
       count: parsed.count ?? parsed.flights?.length ?? 0,

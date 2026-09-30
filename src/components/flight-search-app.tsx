@@ -20,46 +20,51 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { cityPlace } from "@/lib/regions";
 import type { CabinClass, FlightOffer, LocationResult, TripType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const defaultOutbound: DateRange = {
-  from: addDays(new Date(), 7),
-  to: addDays(new Date(), 21),
+  from: addDays(new Date(), 14),
+  to: addDays(new Date(), 28),
 };
 
+type StopsFilter = "any" | "0" | "1" | "2";
+
 export function FlightSearchApp() {
-  const [from, setFrom] = useState<LocationResult | null>({
-    id: "city-IST",
-    code: "IST",
-    name: "Istanbul",
-    kind: "city",
-    countryCode: "TR",
-    countryName: "Turkey",
-    subtitle: "Turkey",
-  });
-  const [to, setTo] = useState<LocationResult | null>({
-    id: "city-ATH",
-    code: "ATH",
-    name: "Athens",
-    kind: "city",
-    countryCode: "GR",
-    countryName: "Greece",
-    subtitle: "Greece",
-  });
+  const [from, setFrom] = useState<LocationResult | null>(
+    cityPlace("IST") ?? {
+      id: "city-IST",
+      code: "IST",
+      name: "Istanbul",
+      kind: "city",
+      subtitle: "All airports · IST",
+    }
+  );
+  const [to, setTo] = useState<LocationResult | null>(
+    cityPlace("ATH") ?? {
+      id: "city-ATH",
+      code: "ATH",
+      name: "Athens",
+      kind: "city",
+      subtitle: "Greece",
+    }
+  );
   const [trip, setTrip] = useState<TripType>("one-way");
   const [outbound, setOutbound] = useState<DateRange | undefined>(defaultOutbound);
   const [inbound, setInbound] = useState<DateRange | undefined>({
-    from: addDays(new Date(), 14),
-    to: addDays(new Date(), 28),
+    from: addDays(new Date(), 21),
+    to: addDays(new Date(), 35),
   });
   const [seat, setSeat] = useState<CabinClass>("economy");
   const [currency, setCurrency] = useState("USD");
-  const [directOnly, setDirectOnly] = useState(false);
+  const [stops, setStops] = useState<StopsFilter>("any");
+  const [layoverEnabled, setLayoverEnabled] = useState(false);
+  const [maxLayoverHours, setMaxLayoverHours] = useState(6);
   const [maxPrice, setMaxPrice] = useState<number>(1500);
   const [priceEnabled, setPriceEnabled] = useState(false);
   const [airlineQuery, setAirlineQuery] = useState("");
-  const [showFilters, setShowFilters] = useState(false);
+  const [showFilters, setShowFilters] = useState(true);
 
   const [flights, setFlights] = useState<FlightOffer[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -83,19 +88,22 @@ export function FlightSearchApp() {
     const params = new URLSearchParams({
       from: from.code,
       to: to.code,
+      fromKind: from.kind,
       toKind: to.kind,
       dateFrom,
       dateTo,
       trip,
       seat,
       currency,
+      limit: "120",
     });
 
     if (trip === "round-trip" && inbound?.from) {
       params.set("returnFrom", format(inbound.from, "yyyy-MM-dd"));
       params.set("returnTo", format(inbound.to ?? inbound.from, "yyyy-MM-dd"));
     }
-    if (directOnly) params.set("maxStops", "0");
+    if (stops !== "any") params.set("maxStops", stops);
+    if (layoverEnabled) params.set("maxLayover", String(maxLayoverHours * 60));
     if (priceEnabled) params.set("maxPrice", String(maxPrice));
     if (airlineQuery.trim()) params.set("airlines", airlineQuery.trim());
 
@@ -128,11 +136,21 @@ export function FlightSearchApp() {
 
   const filterHint = useMemo(() => {
     const bits = [];
-    if (directOnly) bits.push("direct only");
+    if (stops === "0") bits.push("direct only");
+    else if (stops !== "any") bits.push(`max ${stops} stop${stops === "1" ? "" : "s"}`);
+    if (layoverEnabled) bits.push(`layover ≤ ${maxLayoverHours}h`);
     if (priceEnabled) bits.push(`max ${currency} ${maxPrice}`);
     if (airlineQuery.trim()) bits.push(airlineQuery.trim());
     return bits.length ? bits.join(" · ") : "No extra filters";
-  }, [airlineQuery, currency, directOnly, maxPrice, priceEnabled]);
+  }, [
+    airlineQuery,
+    currency,
+    layoverEnabled,
+    maxLayoverHours,
+    maxPrice,
+    priceEnabled,
+    stops,
+  ]);
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 pb-20 pt-6 sm:px-6 lg:px-8">
@@ -303,19 +321,57 @@ export function FlightSearchApp() {
             )}
           >
             <div className="min-h-0 overflow-hidden">
-              <div className="grid gap-4 rounded-2xl bg-sky-50/80 p-4 ring-1 ring-sky-900/5 md:grid-cols-3">
-                <label className="flex cursor-pointer items-center gap-3 rounded-xl bg-white/80 px-3 py-3 ring-1 ring-sky-900/5">
-                  <Checkbox
-                    checked={directOnly}
-                    onCheckedChange={(v) => setDirectOnly(Boolean(v))}
+              <div className="grid gap-4 rounded-2xl bg-sky-50/80 p-4 ring-1 ring-sky-900/5 md:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-xl bg-white/80 px-3 py-3 ring-1 ring-sky-900/5">
+                  <Label className="text-sm font-semibold">Stops</Label>
+                  <Select
+                    value={stops}
+                    onValueChange={(v) => {
+                      if (v) setStops(v as StopsFilter);
+                    }}
+                    items={{
+                      any: "Any number of stops",
+                      "0": "Direct only",
+                      "1": "Max 1 stop",
+                      "2": "Max 2 stops",
+                    }}
+                  >
+                    <SelectTrigger className="mt-2 h-9 w-full border-sky-900/10 bg-white">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="any">Any number of stops</SelectItem>
+                      <SelectItem value="0">Direct only</SelectItem>
+                      <SelectItem value="1">Max 1 stop</SelectItem>
+                      <SelectItem value="2">Max 2 stops</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="rounded-xl bg-white/80 px-3 py-3 ring-1 ring-sky-900/5">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <Label className="text-sm font-semibold">Max layover</Label>
+                    <label className="flex items-center gap-2 text-xs text-slate-500">
+                      <Checkbox
+                        checked={layoverEnabled}
+                        onCheckedChange={(v) => setLayoverEnabled(Boolean(v))}
+                      />
+                      Enable
+                    </label>
+                  </div>
+                  <Slider
+                    min={1}
+                    max={24}
+                    step={1}
+                    value={[maxLayoverHours]}
+                    disabled={!layoverEnabled}
+                    onValueChange={(v) => {
+                      const next = Array.isArray(v) ? v[0] : v;
+                      if (typeof next === "number") setMaxLayoverHours(next);
+                    }}
                   />
-                  <span>
-                    <span className="block text-sm font-semibold text-slate-900">
-                      Direct flights only
-                    </span>
-                    <span className="text-xs text-slate-500">No layovers</span>
-                  </span>
-                </label>
+                  <p className="mt-2 text-xs text-slate-500">{maxLayoverHours} hours</p>
+                </div>
 
                 <div className="rounded-xl bg-white/80 px-3 py-3 ring-1 ring-sky-900/5">
                   <div className="mb-2 flex items-center justify-between gap-2">
@@ -372,7 +428,7 @@ export function FlightSearchApp() {
 
       {!searched && !loading ? (
         <p className="mt-4 text-center text-xs text-slate-500">
-          Tip: try Netherlands → Italy or Europe → South East Asia to uncover cheaper routes.
+          Tip: try Netherlands → Turkey or Istanbul → USA to uncover cheaper routes.
         </p>
       ) : null}
     </div>

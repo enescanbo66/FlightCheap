@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import type { FlightOffer } from "@/lib/types";
+import type { FlightOffer, FlightSegment } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 function formatMoney(price: number, currency: string) {
@@ -29,17 +29,76 @@ function formatPrettyDate(iso: string) {
   }
 }
 
+function formatLayover(minutes?: number | null) {
+  if (minutes == null || minutes <= 0) return null;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h && m) return `${h}h ${m}m layover`;
+  if (h) return `${h}h layover`;
+  return `${m}m layover`;
+}
+
 function googleFlightsUrl(flight: FlightOffer) {
   const origin = flight.departure.airport;
   const dest = flight.arrival.airport;
   const date = flight.departure.date;
+  if (flight.trip === "round-trip" && flight.returnDeparture) {
+    return `https://www.google.com/travel/flights#flt=${origin}.${dest}.${date}*${dest}.${origin}.${flight.returnDeparture.date}`;
+  }
   return `https://www.google.com/travel/flights#flt=${origin}.${dest}.${date}`;
+}
+
+function SegmentList({
+  title,
+  segments,
+  price,
+  currency,
+}: {
+  title: string;
+  segments: FlightSegment[];
+  price?: number;
+  currency: string;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-sky-800/70">
+          {title}
+        </p>
+        {price != null ? (
+          <p className="text-xs text-slate-500">{formatMoney(price, currency)}</p>
+        ) : null}
+      </div>
+      {segments.map((segment, index) => (
+        <div
+          key={`${title}-${segment.from.code}-${segment.to.code}-${index}`}
+          className="rounded-xl bg-white/80 px-3 py-3 text-sm ring-1 ring-sky-900/5"
+        >
+          <div className="font-medium text-slate-900">
+            {segment.departure.time} → {segment.arrival.time}
+            <span className="ml-2 font-normal text-slate-500">
+              {segment.durationLabel}
+            </span>
+          </div>
+          <div className="mt-1 text-slate-600">
+            {segment.from.name} ({segment.from.code}) → {segment.to.name} (
+            {segment.to.code})
+          </div>
+          {segment.aircraft ? (
+            <div className="mt-1 text-xs text-slate-400">{segment.aircraft}</div>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function FlightRow({ flight }: { flight: FlightOffer }) {
   const [open, setOpen] = useState(false);
   const stopLabel =
     flight.stops === 0 ? "Direct" : flight.stops === 1 ? "1 stop" : `${flight.stops} stops`;
+  const isRoundTrip = flight.trip === "round-trip" && flight.returnDeparture;
+  const layoverLabel = formatLayover(flight.maxLayoverMinutes);
 
   return (
     <article
@@ -53,8 +112,15 @@ function FlightRow({ flight }: { flight: FlightOffer }) {
         onClick={() => setOpen((v) => !v)}
         className="grid w-full grid-cols-[7.5rem_1fr_auto] items-center gap-4 px-4 py-4 text-left sm:grid-cols-[8.5rem_1fr_9rem_auto] sm:gap-6 sm:px-5"
       >
-        <div className="text-2xl font-bold tracking-tight text-sky-950 sm:text-[1.7rem]">
-          {formatMoney(flight.price, flight.currency)}
+        <div>
+          <div className="text-2xl font-bold tracking-tight text-sky-950 sm:text-[1.7rem]">
+            {formatMoney(flight.price, flight.currency)}
+          </div>
+          {isRoundTrip ? (
+            <div className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-sky-700/80">
+              Round-trip
+            </div>
+          ) : null}
         </div>
 
         <div className="min-w-0">
@@ -66,17 +132,29 @@ function FlightRow({ flight }: { flight: FlightOffer }) {
               {formatPrettyDate(flight.departure.date)}
             </span>
           </div>
+          {isRoundTrip && flight.returnDeparture && flight.returnArrival ? (
+            <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+              <span className="font-semibold text-slate-800">
+                {flight.returnDeparture.time} – {flight.returnArrival.time}
+              </span>
+              <span className="text-slate-500">
+                {formatPrettyDate(flight.returnDeparture.date)} · return
+              </span>
+            </div>
+          ) : null}
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600">
             <span className="font-medium text-slate-800">{flight.durationLabel}</span>
             <span className="text-slate-300">·</span>
             <span>
-              {flight.departure.airportName?.replace(/ Airport$/, "") ||
-                flight.departure.airport}{" "}
-              ({flight.departure.airport}) →{" "}
-              {flight.arrival.airportName?.replace(/ Airport$/, "") ||
-                flight.arrival.airport}{" "}
-              ({flight.arrival.airport})
+              {flight.departure.airport} → {flight.arrival.airport}
+              {isRoundTrip ? ` → ${flight.departure.airport}` : ""}
             </span>
+            {layoverLabel ? (
+              <>
+                <span className="text-slate-300">·</span>
+                <span>{layoverLabel}</span>
+              </>
+            ) : null}
           </div>
           <div className="mt-1 truncate text-sm text-slate-500 sm:hidden">
             {flight.airlines.join(", ")}
@@ -115,7 +193,7 @@ function FlightRow({ flight }: { flight: FlightOffer }) {
         )}
       >
         <div className="min-h-0">
-          <div className="space-y-3 border-t border-sky-900/5 px-4 pb-4 pt-3 sm:px-5">
+          <div className="space-y-4 border-t border-sky-900/5 px-4 pb-4 pt-3 sm:px-5">
             <div className="sm:hidden">
               <Badge
                 variant="secondary"
@@ -129,26 +207,20 @@ function FlightRow({ flight }: { flight: FlightOffer }) {
                 {stopLabel}
               </Badge>
             </div>
-            {flight.segments.map((segment, index) => (
-              <div
-                key={`${segment.from.code}-${segment.to.code}-${index}`}
-                className="rounded-xl bg-white/80 px-3 py-3 text-sm ring-1 ring-sky-900/5"
-              >
-                <div className="font-medium text-slate-900">
-                  {segment.departure.time} → {segment.arrival.time}
-                  <span className="ml-2 font-normal text-slate-500">
-                    {segment.durationLabel}
-                  </span>
-                </div>
-                <div className="mt-1 text-slate-600">
-                  {segment.from.name} ({segment.from.code}) → {segment.to.name} (
-                  {segment.to.code})
-                </div>
-                {segment.aircraft ? (
-                  <div className="mt-1 text-xs text-slate-400">{segment.aircraft}</div>
-                ) : null}
-              </div>
-            ))}
+            <SegmentList
+              title="Outbound"
+              segments={flight.segments}
+              price={flight.outboundPrice}
+              currency={flight.currency}
+            />
+            {flight.returnSegments?.length ? (
+              <SegmentList
+                title="Return"
+                segments={flight.returnSegments}
+                price={flight.returnPrice}
+                currency={flight.currency}
+              />
+            ) : null}
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <a
                 href={googleFlightsUrl(flight)}
