@@ -197,15 +197,18 @@ export async function GET(request: Request) {
   merged.sort((a, b) => rank(a) - rank(b));
 
   // Drop weak remote noise when we already have strong local matches
-  const strong = merged.filter(
-    (p) =>
-      p.name.toLowerCase().includes(qLower) ||
+  const strong = merged.filter((p) => {
+    const name = p.name.toLowerCase();
+    const sub = (p.subtitle ?? "").toLowerCase();
+    return (
+      name.includes(qLower) ||
       p.code.toLowerCase() === qLower ||
-      p.subtitle?.toLowerCase().includes(qLower) ||
-      p.kind === "country" ||
-      p.kind === "region"
-  );
-  const results = (strong.length >= 3 ? strong : merged).slice(0, 16);
+      (p.kind === "airport" && sub.includes(qLower)) ||
+      ((p.kind === "country" || p.kind === "region") &&
+        (name.includes(qLower) || p.code.toLowerCase().includes(qLower)))
+    );
+  });
+  const results = (strong.length >= 2 ? strong : merged).slice(0, 16);
 
   return NextResponse.json({ results });
 }

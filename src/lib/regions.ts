@@ -485,8 +485,14 @@ export function expandPlaceToSearchCodes(
   if (explicitAirports?.length && (kind === "country" || kind === "region")) {
     return explicitAirports;
   }
-  // City metro codes: search with the city code itself (covers all airports)
+  // City metro codes: use city code when it differs from member airports
+  // (PAR/LON/NYC). If the city code is also an airport code (IST), expand
+  // to every airport so Sabiha/etc. are not dropped.
   if (kind === "city" || CITY_AIRPORTS[upper]) {
+    const meta = CITY_AIRPORTS[upper];
+    if (meta && meta.airports.length > 1 && meta.airports.includes(upper)) {
+      return [...meta.airports];
+    }
     return [upper];
   }
   return [upper];
