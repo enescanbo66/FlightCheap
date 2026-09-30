@@ -14,6 +14,7 @@ const FLIGHTLIST_URL = "https://www.flightlist.io/api/search.php";
 
 type KiwiRouteLeg = {
   id?: string;
+  combination_id?: string;
   flyFrom?: string;
   flyTo?: string;
   cityFrom?: string;
@@ -176,10 +177,33 @@ function maxLayover(segments: FlightSegment[]): number | null {
   return max || null;
 }
 
+/** Ordered unique combination_ids for a set of legs — used to match one-way fares. */
+function combinationKey(legs: KiwiRouteLeg[]): string | null {
+  const ids: string[] = [];
+  for (const leg of legs) {
+    const cid = leg.combination_id?.trim();
+    if (cid && !ids.includes(cid)) ids.push(cid);
+  }
+  return ids.length ? ids.join("|") : null;
+}
+
+/** Index one-way Kiwi flights by combination_id key → price. */
+export function indexKiwiOneWayPrices(flights: KiwiFlight[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const flight of flights) {
+    if (flight.price == null) continue;
+    const legs = (flight.route ?? []).filter((l) => (l.return ?? 0) === 0);
+    const key = combinationKey(legs.length ? legs : flight.route ?? []);
+    if (key && !map.has(key)) map.set(key, flight.price);
+  }
+  return map;
+}
+
 export function mapKiwiFlight(
   flight: KiwiFlight,
   currency: string,
-  trip: TripType
+  trip: TripType,
+  legPrices?: { outbound?: Map<string, number>; return?: Map<string, number> }
 ): FlightOffer | null {
   if (flight.price == null || !flight.flyFrom || !flight.flyTo) return null;
   const route = flight.route ?? [];
@@ -250,6 +274,13 @@ export function mapKiwiFlight(
       offer.durationMinutes = Math.round(flight.duration.total / 60);
       offer.durationLabel = formatDurationLabel(offer.durationMinutes);
     }
+
+    const outKey = combinationKey(outbound);
+    const retKey = combinationKey(returnLegs);
+    const outPrice = outKey ? legPrices?.outbound?.get(outKey) : undefined;
+    const retPrice = retKey ? legPrices?.return?.get(retKey) : undefined;
+    if (outPrice != null) offer.outboundPrice = outPrice;
+    if (retPrice != null) offer.returnPrice = retPrice;
   }
 
   return offer;
@@ -310,24 +341,12 @@ async function fetchKiwiJson(
   return (await res.json()) as KiwiSearchResponse;
 }
 
-/**
- * Search Kiwi/Tequila (or FlightList proxy). Returns null when unavailable
- * so the caller can fall back to Google Flights.
- */
-export async function searchKiwiFlights(
-  params: FlightSearchParams & {
-    fromKind?: string;
-    toKind?: string;
-  }
-): Promise<FlightSearchResponse | null> {
-  const flyFrom = toKiwiPlace(params.from, params.fromKind);
-  const flyTo = toKiwiPlace(params.to, params.toKind);
-  if (!flyFrom || !flyTo) return null;
-
-  const query = buildQuery({ ...params, flyFrom, flyTo });
-  const key = apiKey();
+async function fetchKiwiSearch(
+  query: URLSearchParams,
+  key: string | undefined
+): Promise<{ raw: KiwiSearchResponse | null; error?: string }> {
   let raw: KiwiSearchResponse | null = null;
-  let sourceError: string | undefined;
+  let error: string | undefined;
 
   if (key) {
     try {
@@ -336,7 +355,7 @@ export async function searchKiwiFlights(
         Accept: "application/json",
       });
     } catch (err) {
-      sourceError = err instanceof Error ? err.message : "Tequila request failed";
+      error = err instanceof Error ? err.message : "Tequila request failed";
     }
   }
 
@@ -351,11 +370,73 @@ export async function searchKiwiFlights(
       });
       if (fl?.data?.length) raw = fl;
     } catch (err) {
-      sourceError =
-        sourceError ||
+      error =
+        error ||
         (err instanceof Error ? err.message : "FlightList request failed");
     }
   }
+
+  return { raw, error };
+}
+
+/**
+ * Search Kiwi/Tequila (or FlightList proxy). Returns null when unavailable
+ * so the caller can fall back to Google Flights.
+ */
+export async function searchKiwiFlights(
+  params: FlightSearchParams & {
+    fromKind?: string;
+    toKind?: string;
+  }
+): Promise<FlightSearchResponse | null> {
+  const flyFrom = toKiwiPlace(params.from, params.fromKind);
+  const flyTo = toKiwiPlace(params.to, params.toKind);
+  if (!flyFrom || !flyTo) return null;
+
+  const trip = params.trip ?? "one-way";
+  const key = apiKey();
+  const query = buildQuery({ ...params, flyFrom, flyTo });
+
+  // For round-trips, also pull one-way fares so we can show outbound/return prices.
+  const outboundOneWayQuery =
+    trip === "round-trip"
+      ? buildQuery({
+          ...params,
+          flyFrom,
+          flyTo,
+          trip: "one-way",
+          returnFrom: undefined,
+          returnTo: undefined,
+          limit: Math.max(params.limit ?? 100, 100),
+        })
+      : null;
+  const returnOneWayQuery =
+    trip === "round-trip" && params.returnFrom
+      ? buildQuery({
+          ...params,
+          flyFrom: flyTo,
+          flyTo: flyFrom,
+          dateFrom: params.returnFrom,
+          dateTo: params.returnTo || params.returnFrom,
+          trip: "one-way",
+          returnFrom: undefined,
+          returnTo: undefined,
+          limit: Math.max(params.limit ?? 100, 100),
+        })
+      : null;
+
+  const [main, outboundOw, returnOw] = await Promise.all([
+    fetchKiwiSearch(query, key),
+    outboundOneWayQuery
+      ? fetchKiwiSearch(outboundOneWayQuery, key)
+      : Promise.resolve({ raw: null as KiwiSearchResponse | null }),
+    returnOneWayQuery
+      ? fetchKiwiSearch(returnOneWayQuery, key)
+      : Promise.resolve({ raw: null as KiwiSearchResponse | null }),
+  ]);
+
+  const raw = main.raw;
+  const sourceError = main.error;
 
   if (!raw?.data) {
     if (!key) {
@@ -370,11 +451,17 @@ export async function searchKiwiFlights(
   }
 
   const currency = (raw.currency || params.currency || "EUR").toUpperCase();
-  const trip = params.trip ?? "one-way";
-  let flights = raw.data
-    .map((f) => mapKiwiFlight(f, currency, trip))
-    .filter((f): f is FlightOffer => Boolean(f));
+  const legPrices =
+    trip === "round-trip"
+      ? {
+          outbound: indexKiwiOneWayPrices(outboundOw.raw?.data ?? []),
+          return: indexKiwiOneWayPrices(returnOw.raw?.data ?? []),
+        }
+      : undefined;
 
+  let flights = raw.data
+    .map((f) => mapKiwiFlight(f, currency, trip, legPrices))
+    .filter((f): f is FlightOffer => Boolean(f));
   if (params.maxStops != null && Number.isFinite(params.maxStops)) {
     flights = flights.filter((f) => f.stops <= (params.maxStops as number));
   }

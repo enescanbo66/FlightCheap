@@ -73,7 +73,9 @@ function SegmentList({
           {title}
         </p>
         {price != null ? (
-          <p className="text-xs text-slate-500">{formatMoney(price, currency)}</p>
+          <p className="text-sm font-semibold tabular-nums text-sky-950">
+            {formatMoney(price, currency)}
+          </p>
         ) : null}
       </div>
       {segments.map((segment, index) => (
