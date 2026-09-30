@@ -134,7 +134,13 @@ export function tagAlternateAirports(
       fromSet.size > 0 && !fromSet.has(f.departure.airport.toUpperCase());
     const alternateDestination =
       toSet.size > 0 && !toSet.has(f.arrival.airport.toUpperCase());
-    if (!alternateOrigin && !alternateDestination) {
+    // Return into a different nearby origin than the outbound departure
+    const returnAirport = f.returnArrival?.airport?.toUpperCase();
+    const alternateReturn =
+      Boolean(returnAirport) &&
+      fromSet.size > 0 &&
+      !fromSet.has(returnAirport as string);
+    if (!alternateOrigin && !alternateDestination && !alternateReturn) {
       return {
         ...f,
         usesAlternateAirport: false,
@@ -145,7 +151,7 @@ export function tagAlternateAirports(
     return {
       ...f,
       usesAlternateAirport: true,
-      alternateOrigin,
+      alternateOrigin: alternateOrigin || alternateReturn,
       alternateDestination,
     };
   });
@@ -361,6 +367,8 @@ function buildQuery(
   params: FlightSearchParams & {
     flyFrom: string;
     flyTo: string;
+    /** Allow outbound/return to use different airports in the fly_from/fly_to sets. */
+    allowOpenJaw?: boolean;
   }
 ): URLSearchParams {
   const q = new URLSearchParams();
@@ -384,6 +392,11 @@ function buildQuery(
   if (params.trip === "round-trip" && params.returnFrom) {
     q.set("return_from", toKiwiDate(params.returnFrom));
     q.set("return_to", toKiwiDate(params.returnTo || params.returnFrom));
+  }
+  // Nearby multi-airport searches: prefer combinations like BRU→…→AMS
+  if (params.trip === "round-trip" && params.allowOpenJaw) {
+    q.set("ret_to_diff_airport", "1");
+    q.set("ret_from_diff_airport", "1");
   }
   if (params.maxPrice != null && Number.isFinite(params.maxPrice)) {
     q.set("price_to", String(params.maxPrice));
@@ -476,7 +489,17 @@ export async function searchKiwiFlights(
 
   const trip = params.trip ?? "one-way";
   const key = apiKey();
-  const query = buildQuery({ ...params, flyFrom, flyTo });
+  const multiAirport =
+    (params.fromAirports?.length ?? 0) > 1 ||
+    (params.toAirports?.length ?? 0) > 1 ||
+    flyFrom.includes(",") ||
+    flyTo.includes(",");
+  const query = buildQuery({
+    ...params,
+    flyFrom,
+    flyTo,
+    allowOpenJaw: multiAirport,
+  });
 
   // For round-trips, also pull one-way fares so we can show outbound/return prices.
   const outboundOneWayQuery =

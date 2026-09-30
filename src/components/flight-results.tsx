@@ -102,6 +102,12 @@ function SegmentList({
   );
 }
 
+function isOpenJaw(flight: FlightOffer) {
+  const back = flight.returnArrival?.airport;
+  if (!back || !flight.departure?.airport) return false;
+  return back.toUpperCase() !== flight.departure.airport.toUpperCase();
+}
+
 function alternateHint(flight: FlightOffer) {
   const bits: string[] = [];
   if (flight.alternateOrigin) {
@@ -110,8 +116,18 @@ function alternateHint(flight: FlightOffer) {
   if (flight.alternateDestination) {
     bits.push(`arrives ${flight.arrival.airport}`);
   }
+  if (isOpenJaw(flight) && flight.returnArrival) {
+    bits.push(`returns to ${flight.returnArrival.airport}`);
+  }
   if (!bits.length) return "Uses a nearby airport";
   return `Nearby airport: ${bits.join(" · ")}`;
+}
+
+function routeSummary(flight: FlightOffer, isRoundTrip: boolean) {
+  const out = `${flight.departure.airport} → ${flight.arrival.airport}`;
+  if (!isRoundTrip) return out;
+  const back = flight.returnArrival?.airport ?? flight.departure.airport;
+  return `${out} → ${back}`;
 }
 
 function FlightRow({ flight }: { flight: FlightOffer }) {
@@ -120,7 +136,8 @@ function FlightRow({ flight }: { flight: FlightOffer }) {
     flight.stops === 0 ? "Direct" : flight.stops === 1 ? "1 stop" : `${flight.stops} stops`;
   const isRoundTrip = flight.trip === "round-trip" && flight.returnDeparture;
   const layoverLabel = formatLayover(flight.maxLayoverMinutes);
-  const isAlternate = Boolean(flight.usesAlternateAirport);
+  const openJaw = Boolean(isRoundTrip && isOpenJaw(flight));
+  const isAlternate = Boolean(flight.usesAlternateAirport) || openJaw;
 
   return (
     <article
@@ -184,9 +201,8 @@ function FlightRow({ flight }: { flight: FlightOffer }) {
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600">
             <span className="font-medium text-slate-800">{flight.durationLabel}</span>
             <span className="text-slate-300">·</span>
-            <span>
-              {flight.departure.airport} → {flight.arrival.airport}
-              {isRoundTrip ? ` → ${flight.departure.airport}` : ""}
+            <span className={cn(openJaw && "font-semibold text-amber-900")}>
+              {routeSummary(flight, Boolean(isRoundTrip))}
             </span>
             {layoverLabel ? (
               <>
