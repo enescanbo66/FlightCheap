@@ -281,18 +281,22 @@ export function FlightSearchApp() {
           </div>
 
           <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <NearbyAirportsControl
-              label="departure"
-              place={from}
-              value={nearbyFrom}
-              onChange={setNearbyFrom}
-            />
-            <NearbyAirportsControl
-              label="arrival"
-              place={to}
-              value={nearbyTo}
-              onChange={setNearbyTo}
-            />
+            <div className="min-w-0">
+              <NearbyAirportsControl
+                label="departure"
+                place={from}
+                value={nearbyFrom}
+                onChange={setNearbyFrom}
+              />
+            </div>
+            <div className="min-w-0">
+              <NearbyAirportsControl
+                label="arrival"
+                place={to}
+                value={nearbyTo}
+                onChange={setNearbyTo}
+              />
+            </div>
           </div>
 
           <div className="mt-3 grid gap-3 md:grid-cols-2">

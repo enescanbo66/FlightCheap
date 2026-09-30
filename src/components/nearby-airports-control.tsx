@@ -138,7 +138,34 @@ export function NearbyAirportsControl({ place, value, onChange, label }: Props) 
     return `${selectedCount} of ${value.options.length} airports · ${value.radiusKm} km`;
   }, [value.enabled, value.options.length, value.radiusKm, selectedCount, loading]);
 
-  if (!place || !supported) return null;
+  if (!place) return <div className="min-h-[2.5rem]" aria-hidden />;
+
+  if (!supported) {
+    const kindLabel =
+      place.kind === "country"
+        ? "countries"
+        : place.kind === "region"
+          ? "regions"
+          : place.kind === "anywhere"
+            ? "Anywhere"
+            : "this location type";
+    return (
+      <div className="rounded-xl bg-slate-50/90 px-3 py-2.5 ring-1 ring-slate-200/80">
+        <div className="flex items-start gap-2">
+          <Radar className="mt-0.5 size-3.5 shrink-0 text-slate-400" />
+          <div>
+            <p className="text-xs font-semibold text-slate-600">
+              Nearby airports — {label}
+            </p>
+            <p className="mt-0.5 text-[11px] leading-snug text-slate-500">
+              Not available for {kindLabel}. Pick a city or airport to expand
+              nearby options on this side.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const toggleAirport = (code: string, checked: boolean) => {
     const set = new Set(value.selected);

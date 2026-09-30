@@ -204,15 +204,42 @@ function routeSummary(flight: FlightOffer, isRoundTrip: boolean) {
   return `${out} → ${back}`;
 }
 
+function stopsPhrase(stops: number) {
+  if (stops <= 0) return "Direct";
+  if (stops === 1) return "1 stop";
+  return `${stops} stops`;
+}
+
+/** Round-trip: "Direct + 1 stop"; one-way: single phrase. */
+function stopLabelFor(flight: FlightOffer) {
+  const outboundStops = Math.max(0, (flight.segments?.length ?? 1) - 1);
+  const hasReturn = Boolean(flight.returnSegments?.length);
+  if (!hasReturn && flight.trip !== "round-trip") {
+    return stopsPhrase(flight.stops ?? outboundStops);
+  }
+  if (!hasReturn) {
+    return stopsPhrase(outboundStops);
+  }
+  const returnStops = Math.max(0, (flight.returnSegments?.length ?? 1) - 1);
+  return `${stopsPhrase(outboundStops)} + ${stopsPhrase(returnStops)}`;
+}
+
+function bothDirect(flight: FlightOffer) {
+  const outboundStops = Math.max(0, (flight.segments?.length ?? 1) - 1);
+  if (!flight.returnSegments?.length) return outboundStops === 0;
+  const returnStops = Math.max(0, flight.returnSegments.length - 1);
+  return outboundStops === 0 && returnStops === 0;
+}
+
 function FlightRow({ flight }: { flight: FlightOffer }) {
   const [open, setOpen] = useState(false);
-  const stopLabel =
-    flight.stops === 0 ? "Direct" : flight.stops === 1 ? "1 stop" : `${flight.stops} stops`;
+  const stopLabel = stopLabelFor(flight);
   const isRoundTrip = flight.trip === "round-trip" && flight.returnDeparture;
   const layoverLabel = formatLayover(flight.maxLayoverMinutes);
   const openJaw = Boolean(isRoundTrip && isOpenJaw(flight));
   const isAlternate = Boolean(flight.usesAlternateAirport) || openJaw;
   const stayLabel = isRoundTrip ? tripStayLabel(flight) : null;
+  const fullyDirect = bothDirect(flight);
 
   return (
     <article
@@ -248,7 +275,7 @@ function FlightRow({ flight }: { flight: FlightOffer }) {
             </div>
           ) : null}
           {stayLabel ? (
-            <div className="mt-0.5 text-[11px] font-medium text-slate-600">
+            <div className="mt-0.5 text-[11px] font-semibold text-sky-900">
               {stayLabel}
             </div>
           ) : null}
@@ -301,7 +328,7 @@ function FlightRow({ flight }: { flight: FlightOffer }) {
             variant="secondary"
             className={cn(
               "rounded-md px-2.5 py-1 text-xs font-semibold",
-              flight.direct
+              fullyDirect
                 ? "bg-emerald-50 text-emerald-800 hover:bg-emerald-50"
                 : "bg-amber-50 text-amber-900 hover:bg-amber-50"
             )}
@@ -334,7 +361,7 @@ function FlightRow({ flight }: { flight: FlightOffer }) {
                 variant="secondary"
                 className={cn(
                   "rounded-md px-2.5 py-1 text-xs font-semibold",
-                  flight.direct
+                  fullyDirect
                     ? "bg-emerald-50 text-emerald-800"
                     : "bg-amber-50 text-amber-900"
                 )}
