@@ -160,6 +160,15 @@ def serialize_offer(
     }
 
 
+def stop_search_modes(max_stops: int | None) -> list[int | None]:
+    """Google returns a shortlist per query; stop filters change which fares
+    appear. Fan out so 'any stops' cannot miss cheaper directs."""
+    if max_stops is None:
+        # Direct + 1-stop + open mix covers the cheap LCCs Google otherwise drops
+        return [0, 1, None]
+    return list(range(0, max_stops + 1))
+
+
 def search_one_way_day(
     *,
     origin: str,
@@ -171,42 +180,49 @@ def search_one_way_day(
     max_stops: int | None,
     max_layover_minutes: int | None,
 ) -> list[dict[str, Any]]:
-    query = create_query(
-        flights=[
-            FlightQuery(
-                date=day.isoformat(),
-                from_airport=origin,
-                to_airport=destination,
-                max_stops=max_stops,
-                max_layover_minutes=max_layover_minutes,
-            )
-        ],
-        trip="one-way",
-        seat=seat,  # type: ignore[arg-type]
-        passengers=Passengers(adults=1),
-        currency=currency,  # type: ignore[arg-type]
-        language=language,  # type: ignore[arg-type]
-        max_stops=max_stops,
-    )
-    try:
-        result = get_flights(query)
-    except FlightsNotFound:
-        return []
-    except Exception:
-        return []
+    out: list[dict[str, Any]] = []
+    seen: set[str] = set()
 
-    offers = list(result) if result else []
-    out = []
-    for o in offers:
-        if getattr(o, "price", None) is None:
+    for mode in stop_search_modes(max_stops):
+        query = create_query(
+            flights=[
+                FlightQuery(
+                    date=day.isoformat(),
+                    from_airport=origin,
+                    to_airport=destination,
+                    max_stops=mode,
+                    max_layover_minutes=max_layover_minutes,
+                )
+            ],
+            trip="one-way",
+            seat=seat,  # type: ignore[arg-type]
+            passengers=Passengers(adults=1),
+            currency=currency,  # type: ignore[arg-type]
+            language=language,  # type: ignore[arg-type]
+            max_stops=mode,
+        )
+        try:
+            result = get_flights(query)
+        except FlightsNotFound:
             continue
-        serialized = serialize_offer(o, currency, trip="one-way")
-        if max_layover_minutes is not None and serialized.get("maxLayoverMinutes") is not None:
-            if serialized["maxLayoverMinutes"] > max_layover_minutes:
+        except Exception:
+            continue
+
+        offers = list(result) if result else []
+        for o in offers:
+            if getattr(o, "price", None) is None:
                 continue
-        if max_stops is not None and serialized["stops"] > max_stops:
-            continue
-        out.append(serialized)
+            serialized = serialize_offer(o, currency, trip="one-way")
+            if max_layover_minutes is not None and serialized.get("maxLayoverMinutes") is not None:
+                if serialized["maxLayoverMinutes"] > max_layover_minutes:
+                    continue
+            if max_stops is not None and serialized["stops"] > max_stops:
+                continue
+            key = serialized["id"]
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(serialized)
     return out
 
 
