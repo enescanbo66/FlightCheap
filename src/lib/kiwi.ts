@@ -353,6 +353,9 @@ export function mapKiwiFlight(
       offer.durationMinutes = Math.round(flight.duration.total / 60);
       offer.durationLabel = formatDurationLabel(offer.durationMinutes);
     }
+    if (flight.nightsInDest != null && Number.isFinite(flight.nightsInDest)) {
+      offer.nightsInDest = flight.nightsInDest;
+    }
 
     const outPrice = lookupLegPrice(outbound, legPrices?.outbound);
     const retPrice = lookupLegPrice(returnLegs, legPrices?.return);

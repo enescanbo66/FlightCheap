@@ -1,6 +1,6 @@
 "use client";
 
-import { format } from "date-fns";
+import { differenceInCalendarDays, format } from "date-fns";
 import { AlertTriangle, ChevronDown, ExternalLink } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -23,9 +23,22 @@ function formatMoney(price: number, currency: string) {
   }
 }
 
+function parseIsoDay(iso: string) {
+  return new Date(`${iso}T12:00:00`);
+}
+
 function formatPrettyDate(iso: string) {
   try {
-    return format(new Date(`${iso}T12:00:00`), "EEE MMM do yyyy");
+    return format(parseIsoDay(iso), "EEE MMM do yyyy");
+  } catch {
+    return iso;
+  }
+}
+
+/** Compact day label for segment details, e.g. "Mon, Oct 20". */
+function formatSegmentDay(iso: string) {
+  try {
+    return format(parseIsoDay(iso), "EEE, MMM d");
   } catch {
     return iso;
   }
@@ -38,6 +51,46 @@ function formatLayover(minutes?: number | null) {
   if (h && m) return `${h}h ${m}m layover`;
   if (h) return `${h}h layover`;
   return `${m}m layover`;
+}
+
+/** Nights at destination + calendar days until return departure. */
+function tripStayLabel(flight: FlightOffer): string | null {
+  if (!flight.returnDeparture?.date || !flight.departure?.date) return null;
+
+  let nights = flight.nightsInDest;
+  if (nights == null || !Number.isFinite(nights)) {
+    try {
+      nights = differenceInCalendarDays(
+        parseIsoDay(flight.returnDeparture.date),
+        parseIsoDay(flight.arrival.date || flight.departure.date)
+      );
+    } catch {
+      nights = null;
+    }
+  }
+
+  let daysUntilReturn: number | null = null;
+  try {
+    daysUntilReturn = differenceInCalendarDays(
+      parseIsoDay(flight.returnDeparture.date),
+      parseIsoDay(flight.departure.date)
+    );
+  } catch {
+    daysUntilReturn = null;
+  }
+
+  const bits: string[] = [];
+  if (nights != null && nights >= 0) {
+    bits.push(nights === 1 ? "1 night" : `${nights} nights`);
+  }
+  if (daysUntilReturn != null && daysUntilReturn >= 0) {
+    bits.push(
+      daysUntilReturn === 1
+        ? "back in 1 day"
+        : `back in ${daysUntilReturn} days`
+    );
+  }
+  return bits.length ? bits.join(" · ") : null;
 }
 
 function googleFlightsUrl(flight: FlightOffer) {
@@ -78,26 +131,47 @@ function SegmentList({
           </p>
         ) : null}
       </div>
-      {segments.map((segment, index) => (
-        <div
-          key={`${title}-${segment.from.code}-${segment.to.code}-${index}`}
-          className="rounded-xl bg-white/80 px-3 py-3 text-sm ring-1 ring-sky-900/5"
-        >
-          <div className="font-medium text-slate-900">
-            {segment.departure.time} → {segment.arrival.time}
-            <span className="ml-2 font-normal text-slate-500">
-              {segment.durationLabel}
-            </span>
+      {segments.map((segment, index) => {
+        const depDay = segment.departure.date
+          ? formatSegmentDay(segment.departure.date)
+          : null;
+        const arrDay = segment.arrival.date
+          ? formatSegmentDay(segment.arrival.date)
+          : null;
+        const sameDay = Boolean(
+          segment.departure.date &&
+            segment.arrival.date &&
+            segment.departure.date === segment.arrival.date
+        );
+
+        return (
+          <div
+            key={`${title}-${segment.from.code}-${segment.to.code}-${index}`}
+            className="rounded-xl bg-white/80 px-3 py-3 text-sm ring-1 ring-sky-900/5"
+          >
+            {depDay ? (
+              <p className="text-xs font-medium text-sky-800/80">
+                {sameDay || !arrDay
+                  ? depDay
+                  : `${depDay} → ${arrDay}`}
+              </p>
+            ) : null}
+            <div className={cn("font-medium text-slate-900", depDay && "mt-0.5")}>
+              {segment.departure.time} → {segment.arrival.time}
+              <span className="ml-2 font-normal text-slate-500">
+                {segment.durationLabel}
+              </span>
+            </div>
+            <div className="mt-1 text-slate-600">
+              {segment.from.name} ({segment.from.code}) → {segment.to.name} (
+              {segment.to.code})
+            </div>
+            {segment.aircraft ? (
+              <div className="mt-1 text-xs text-slate-400">{segment.aircraft}</div>
+            ) : null}
           </div>
-          <div className="mt-1 text-slate-600">
-            {segment.from.name} ({segment.from.code}) → {segment.to.name} (
-            {segment.to.code})
-          </div>
-          {segment.aircraft ? (
-            <div className="mt-1 text-xs text-slate-400">{segment.aircraft}</div>
-          ) : null}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -138,6 +212,7 @@ function FlightRow({ flight }: { flight: FlightOffer }) {
   const layoverLabel = formatLayover(flight.maxLayoverMinutes);
   const openJaw = Boolean(isRoundTrip && isOpenJaw(flight));
   const isAlternate = Boolean(flight.usesAlternateAirport) || openJaw;
+  const stayLabel = isRoundTrip ? tripStayLabel(flight) : null;
 
   return (
     <article
@@ -170,6 +245,11 @@ function FlightRow({ flight }: { flight: FlightOffer }) {
           {isRoundTrip ? (
             <div className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-sky-700/80">
               Round-trip
+            </div>
+          ) : null}
+          {stayLabel ? (
+            <div className="mt-0.5 text-[11px] font-medium text-slate-600">
+              {stayLabel}
             </div>
           ) : null}
           {isAlternate ? (

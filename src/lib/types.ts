@@ -37,6 +37,8 @@ export type FlightOffer = {
   returnSegments?: FlightSegment[] | null;
   outboundPrice?: number;
   returnPrice?: number;
+  /** Nights at destination for round-trips (Kiwi nightsInDest or computed). */
+  nightsInDest?: number | null;
   /** Affiliate / booking deep link (Kiwi). Falls back to Google Flights in UI. */
   deepLink?: string | null;
   provider?: "kiwi" | "google";
