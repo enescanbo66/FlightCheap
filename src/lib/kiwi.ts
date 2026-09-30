@@ -187,14 +187,43 @@ function combinationKey(legs: KiwiRouteLeg[]): string | null {
   return ids.length ? ids.join("|") : null;
 }
 
-/** Index one-way Kiwi flights by combination_id key → price. */
+/** airline + flight_no + local_departure — fallback when combination_id is missing. */
+function routeSignature(legs: KiwiRouteLeg[]): string | null {
+  const parts = legs
+    .map((l) => {
+      const airline = (l.airline ?? "").toUpperCase();
+      const no = String(l.flight_no ?? "");
+      const dep = l.local_departure ?? "";
+      if (!airline || !no || !dep) return null;
+      return `${airline}${no}@${dep}`;
+    })
+    .filter((p): p is string => Boolean(p));
+  return parts.length ? parts.join("|") : null;
+}
+
+function lookupLegPrice(
+  legs: KiwiRouteLeg[],
+  index: Map<string, number> | undefined
+): number | undefined {
+  if (!index?.size) return undefined;
+  const byCid = combinationKey(legs);
+  if (byCid && index.has(byCid)) return index.get(byCid);
+  const bySig = routeSignature(legs);
+  if (bySig && index.has(bySig)) return index.get(bySig);
+  return undefined;
+}
+
+/** Index one-way Kiwi flights by combination_id and route signature → price. */
 export function indexKiwiOneWayPrices(flights: KiwiFlight[]): Map<string, number> {
   const map = new Map<string, number>();
   for (const flight of flights) {
     if (flight.price == null) continue;
     const legs = (flight.route ?? []).filter((l) => (l.return ?? 0) === 0);
-    const key = combinationKey(legs.length ? legs : flight.route ?? []);
-    if (key && !map.has(key)) map.set(key, flight.price);
+    const use = legs.length ? legs : flight.route ?? [];
+    const cid = combinationKey(use);
+    const sig = routeSignature(use);
+    if (cid && !map.has(cid)) map.set(cid, flight.price);
+    if (sig && !map.has(sig)) map.set(sig, flight.price);
   }
   return map;
 }
@@ -275,10 +304,8 @@ export function mapKiwiFlight(
       offer.durationLabel = formatDurationLabel(offer.durationMinutes);
     }
 
-    const outKey = combinationKey(outbound);
-    const retKey = combinationKey(returnLegs);
-    const outPrice = outKey ? legPrices?.outbound?.get(outKey) : undefined;
-    const retPrice = retKey ? legPrices?.return?.get(retKey) : undefined;
+    const outPrice = lookupLegPrice(outbound, legPrices?.outbound);
+    const retPrice = lookupLegPrice(returnLegs, legPrices?.return);
     if (outPrice != null) offer.outboundPrice = outPrice;
     if (retPrice != null) offer.returnPrice = retPrice;
   }
@@ -407,7 +434,7 @@ export async function searchKiwiFlights(
           trip: "one-way",
           returnFrom: undefined,
           returnTo: undefined,
-          limit: Math.max(params.limit ?? 100, 100),
+          limit: 200,
         })
       : null;
   const returnOneWayQuery =
@@ -421,7 +448,7 @@ export async function searchKiwiFlights(
           trip: "one-way",
           returnFrom: undefined,
           returnTo: undefined,
-          limit: Math.max(params.limit ?? 100, 100),
+          limit: 200,
         })
       : null;
 
