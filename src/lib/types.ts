@@ -40,6 +40,10 @@ export type FlightOffer = {
   /** Affiliate / booking deep link (Kiwi). Falls back to Google Flights in UI. */
   deepLink?: string | null;
   provider?: "kiwi" | "google";
+  /** True when origin/destination differs from the user's primary place (nearby airport). */
+  usesAlternateAirport?: boolean;
+  alternateOrigin?: boolean;
+  alternateDestination?: boolean;
 };
 
 export type FlightSearchParams = {

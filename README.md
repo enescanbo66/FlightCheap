@@ -38,9 +38,14 @@ App runs at [http://localhost:4321](http://localhost:4321).
 
 **View deal** uses the Kiwi `deep_link` when present; otherwise opens Google Flights for that itinerary.
 
+### Nearby airports
+
+Optionally expand origin and/or destination to other flightable airports within a radius (default **250 km**, adjustable 50–500 km). Each side has its own toggle and checklist so you can drop airports you do not want (e.g. keep SAW only, exclude OGU near Rize). Results that use an airport outside your original place are marked with an alert icon.
+
 ## Notes
 
 - Set `TEQUILA_API_KEY` (or `KIWI_API_KEY`) for reliable Kiwi/Tequila results. Without a key, the app may try the public FlightList proxy, then fall back to Google.
 - Wide date ranges on the Google path are sampled (not every single day) to keep searches responsive
 - Country / region / Anywhere destinations expand to hub airports on the Google path; Kiwi accepts ISO country codes natively
+- Nearby-airport mode is available for city and airport selections (not country/region/Anywhere)
 - No API keys required for the Google Flights + Places fallback

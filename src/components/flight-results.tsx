@@ -1,7 +1,7 @@
 "use client";
 
 import { format } from "date-fns";
-import { ChevronDown, ExternalLink } from "lucide-react";
+import { AlertTriangle, ChevronDown, ExternalLink } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -102,18 +102,32 @@ function SegmentList({
   );
 }
 
+function alternateHint(flight: FlightOffer) {
+  const bits: string[] = [];
+  if (flight.alternateOrigin) {
+    bits.push(`departs ${flight.departure.airport}`);
+  }
+  if (flight.alternateDestination) {
+    bits.push(`arrives ${flight.arrival.airport}`);
+  }
+  if (!bits.length) return "Uses a nearby airport";
+  return `Nearby airport: ${bits.join(" · ")}`;
+}
+
 function FlightRow({ flight }: { flight: FlightOffer }) {
   const [open, setOpen] = useState(false);
   const stopLabel =
     flight.stops === 0 ? "Direct" : flight.stops === 1 ? "1 stop" : `${flight.stops} stops`;
   const isRoundTrip = flight.trip === "round-trip" && flight.returnDeparture;
   const layoverLabel = formatLayover(flight.maxLayoverMinutes);
+  const isAlternate = Boolean(flight.usesAlternateAirport);
 
   return (
     <article
       className={cn(
         "group border-b border-sky-900/8 transition-colors hover:bg-sky-50/50",
-        open && "bg-sky-50/70"
+        open && "bg-sky-50/70",
+        isAlternate && "bg-amber-50/40 hover:bg-amber-50/70"
       )}
     >
       <button
@@ -122,12 +136,28 @@ function FlightRow({ flight }: { flight: FlightOffer }) {
         className="grid w-full grid-cols-[7.5rem_1fr_auto] items-center gap-4 px-4 py-4 text-left sm:grid-cols-[8.5rem_1fr_9rem_auto] sm:gap-6 sm:px-5"
       >
         <div>
-          <div className="text-2xl font-bold tracking-tight text-sky-950 sm:text-[1.7rem]">
-            {formatMoney(flight.price, flight.currency)}
+          <div className="flex items-center gap-1.5">
+            {isAlternate ? (
+              <span
+                title={alternateHint(flight)}
+                className="inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-amber-100 text-amber-700 ring-1 ring-amber-300/70"
+              >
+                <AlertTriangle className="size-3.5" aria-hidden />
+                <span className="sr-only">Nearby airport alternative</span>
+              </span>
+            ) : null}
+            <div className="text-2xl font-bold tracking-tight text-sky-950 sm:text-[1.7rem]">
+              {formatMoney(flight.price, flight.currency)}
+            </div>
           </div>
           {isRoundTrip ? (
             <div className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-sky-700/80">
               Round-trip
+            </div>
+          ) : null}
+          {isAlternate ? (
+            <div className="mt-0.5 text-[11px] font-medium text-amber-800">
+              {alternateHint(flight)}
             </div>
           ) : null}
         </div>

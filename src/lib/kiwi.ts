@@ -107,6 +107,50 @@ export function toKiwiPlace(
   return null;
 }
 
+/** Comma-separated airport:CODE list for nearby multi-airport searches. */
+export function toKiwiAirportList(codes: string[]): string | null {
+  const cleaned = [
+    ...new Set(
+      codes
+        .map((c) => c.trim().toUpperCase())
+        .filter((c) => /^[A-Z]{3}$/.test(c))
+    ),
+  ];
+  if (!cleaned.length) return null;
+  return cleaned.map((c) => `airport:${c}`).join(",");
+}
+
+export function tagAlternateAirports(
+  flights: FlightOffer[],
+  primaryFrom: string[],
+  primaryTo: string[]
+): FlightOffer[] {
+  const fromSet = new Set(primaryFrom.map((c) => c.toUpperCase()));
+  const toSet = new Set(primaryTo.map((c) => c.toUpperCase()));
+  if (!fromSet.size && !toSet.size) return flights;
+
+  return flights.map((f) => {
+    const alternateOrigin =
+      fromSet.size > 0 && !fromSet.has(f.departure.airport.toUpperCase());
+    const alternateDestination =
+      toSet.size > 0 && !toSet.has(f.arrival.airport.toUpperCase());
+    if (!alternateOrigin && !alternateDestination) {
+      return {
+        ...f,
+        usesAlternateAirport: false,
+        alternateOrigin: false,
+        alternateDestination: false,
+      };
+    }
+    return {
+      ...f,
+      usesAlternateAirport: true,
+      alternateOrigin,
+      alternateDestination,
+    };
+  });
+}
+
 function parseLocal(isoLike: string | undefined): { date: string; time: string } {
   if (!isoLike) return { date: "", time: "" };
   // Kiwi local_* timestamps look like 2026-10-25T20:15:00.000Z but are local
@@ -414,10 +458,20 @@ export async function searchKiwiFlights(
   params: FlightSearchParams & {
     fromKind?: string;
     toKind?: string;
+    /** Explicit airport IATA list (nearby mode) — overrides from/fromKind. */
+    fromAirports?: string[];
+    /** Explicit airport IATA list (nearby mode) — overrides to/toKind. */
+    toAirports?: string[];
   }
 ): Promise<FlightSearchResponse | null> {
-  const flyFrom = toKiwiPlace(params.from, params.fromKind);
-  const flyTo = toKiwiPlace(params.to, params.toKind);
+  const flyFrom =
+    params.fromAirports?.length
+      ? toKiwiAirportList(params.fromAirports)
+      : toKiwiPlace(params.from, params.fromKind);
+  const flyTo =
+    params.toAirports?.length
+      ? toKiwiAirportList(params.toAirports)
+      : toKiwiPlace(params.to, params.toKind);
   if (!flyFrom || !flyTo) return null;
 
   const trip = params.trip ?? "one-way";

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
+import { primaryAirportCodes } from "@/lib/airports-geo";
 import { searchFlightsExpanded } from "@/lib/flights";
-import { searchKiwiFlights } from "@/lib/kiwi";
+import { searchKiwiFlights, tagAlternateAirports } from "@/lib/kiwi";
 import { countryHubs, expandPlaceToSearchCodes } from "@/lib/regions";
 import type { CabinClass, TripType } from "@/lib/types";
 
@@ -26,6 +27,18 @@ async function loadCities(): Promise<TpCity[]> {
   } catch {
     return [];
   }
+}
+
+function parseAirportList(raw: string | null): string[] {
+  if (!raw) return [];
+  return [
+    ...new Set(
+      raw
+        .split(",")
+        .map((c) => c.trim().toUpperCase())
+        .filter((c) => /^[A-Z]{3}$/.test(c))
+    ),
+  ];
 }
 
 /** Resolve country → hub city codes, with Travelpayouts fallback for missing countries. */
@@ -53,7 +66,6 @@ async function resolveSearchCodes(
     )
     .map((c) => c.code!.toUpperCase());
 
-  // Prefer well-known order: keep unique, cap hubs
   return [...new Set(codes)].slice(0, 10);
 }
 
@@ -76,6 +88,8 @@ export async function GET(request: Request) {
   const maxPriceRaw = searchParams.get("maxPrice");
   const airlinesRaw = searchParams.get("airlines");
   const limitRaw = searchParams.get("limit");
+  const fromAirports = parseAirportList(searchParams.get("fromAirports"));
+  const toAirports = parseAirportList(searchParams.get("toAirports"));
 
   if (!from || !to || !dateFrom) {
     return NextResponse.json(
@@ -84,10 +98,17 @@ export async function GET(request: Request) {
     );
   }
 
-  const [origins, destinations] = await Promise.all([
-    resolveSearchCodes(from, fromKind),
-    resolveSearchCodes(to, toKind),
+  const [resolvedOrigins, resolvedDestinations] = await Promise.all([
+    fromAirports.length
+      ? Promise.resolve(fromAirports)
+      : resolveSearchCodes(from, fromKind),
+    toAirports.length
+      ? Promise.resolve(toAirports)
+      : resolveSearchCodes(to, toKind),
   ]);
+
+  const origins = resolvedOrigins;
+  const destinations = resolvedDestinations;
 
   if (!origins.length || !destinations.length) {
     return NextResponse.json(
@@ -126,14 +147,17 @@ export async function GET(request: Request) {
     limit,
   };
 
-  // Prefer Kiwi/Tequila (or FlightList proxy) for EU ULCC coverage + deep links.
-  // Falls back to Google Flights when Kiwi cannot represent the place (region/
-  // Anywhere) or when the upstream search is unavailable.
+  const primaryFrom = primaryAirportCodes(from, fromKind);
+  const primaryTo = primaryAirportCodes(to, toKind);
+  const nearbyActive = fromAirports.length > 0 || toAirports.length > 0;
+
   const kiwi = await searchKiwiFlights({
     from,
     to,
     fromKind,
     toKind,
+    fromAirports: fromAirports.length ? fromAirports : undefined,
+    toAirports: toAirports.length ? toAirports : undefined,
     dateFrom,
     dateTo,
     returnFrom,
@@ -145,7 +169,10 @@ export async function GET(request: Request) {
   });
 
   if (kiwi?.ok && kiwi.flights.length > 0) {
-    return NextResponse.json(kiwi);
+    const flights = nearbyActive
+      ? tagAlternateAirports(kiwi.flights, primaryFrom, primaryTo)
+      : kiwi.flights;
+    return NextResponse.json({ ...kiwi, flights, count: flights.length });
   }
 
   const result = await searchFlightsExpanded({
@@ -163,11 +190,17 @@ export async function GET(request: Request) {
     ...filters,
   });
 
+  let flights = result.flights.map((f) =>
+    f.provider ? f : { ...f, provider: "google" as const }
+  );
+  if (nearbyActive) {
+    flights = tagAlternateAirports(flights, primaryFrom, primaryTo);
+  }
+
   const tagged = {
     ...result,
-    flights: result.flights.map((f) =>
-      f.provider ? f : { ...f, provider: "google" as const }
-    ),
+    flights,
+    count: flights.length,
     warning:
       result.warning ||
       (kiwi?.warning

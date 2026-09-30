@@ -8,6 +8,11 @@ import type { DateRange } from "react-day-picker";
 import { DateRangePicker } from "@/components/date-range-picker";
 import { FlightResults } from "@/components/flight-results";
 import { LocationPicker } from "@/components/location-picker";
+import {
+  emptyNearbyState,
+  NearbyAirportsControl,
+  type NearbyAirportsState,
+} from "@/components/nearby-airports-control";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -65,6 +70,8 @@ export function FlightSearchApp() {
   const [priceEnabled, setPriceEnabled] = useState(false);
   const [airlineQuery, setAirlineQuery] = useState("");
   const [showFilters, setShowFilters] = useState(true);
+  const [nearbyFrom, setNearbyFrom] = useState<NearbyAirportsState>(emptyNearbyState);
+  const [nearbyTo, setNearbyTo] = useState<NearbyAirportsState>(emptyNearbyState);
 
   const [flights, setFlights] = useState<FlightOffer[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +84,8 @@ export function FlightSearchApp() {
   const swapPlaces = () => {
     setFrom(to);
     setTo(from);
+    setNearbyFrom(nearbyTo);
+    setNearbyTo(nearbyFrom);
   };
 
   const onSearch = async (currencyOverride?: string) => {
@@ -107,6 +116,12 @@ export function FlightSearchApp() {
     if (layoverEnabled) params.set("maxLayover", String(maxLayoverHours * 60));
     if (priceEnabled) params.set("maxPrice", String(maxPrice));
     if (airlineQuery.trim()) params.set("airlines", airlineQuery.trim());
+    if (nearbyFrom.enabled && nearbyFrom.selected.length) {
+      params.set("fromAirports", nearbyFrom.selected.join(","));
+    }
+    if (nearbyTo.enabled && nearbyTo.selected.length) {
+      params.set("toAirports", nearbyTo.selected.join(","));
+    }
 
     setSearched(true);
     setError(null);
@@ -262,6 +277,21 @@ export function FlightSearchApp() {
               value={to}
               onChange={setTo}
               placeholder="Anywhere, city, country, region…"
+            />
+          </div>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <NearbyAirportsControl
+              label="departure"
+              place={from}
+              value={nearbyFrom}
+              onChange={setNearbyFrom}
+            />
+            <NearbyAirportsControl
+              label="arrival"
+              place={to}
+              value={nearbyTo}
+              onChange={setNearbyTo}
             />
           </div>
 
